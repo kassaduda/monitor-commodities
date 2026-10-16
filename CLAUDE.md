@@ -15,7 +15,7 @@ CEPEA e CONAB entram apenas na execução local.
 - CEPEA: NÃO acessar cepea.org.br por nenhuma ferramenta (o robots.txt bloqueia agentes de IA).
   As planilhas são baixadas manualmente para data/raw/cepea/ e o código só lê arquivos locais.
   Parquet do CEPEA fica no .gitignore até haver autorização formal por escrito.
-- CONAB: licença de dados não declarada (pedido em andamento no Fala.BR). Não redistribuir;
+- CONAB: licença de dados não declarada (pedido em andamento no Informa.BR). Não redistribuir;
   não codar o leitor enquanto não houver licença nem arquivo baixado manualmente.
 - A previsão é ilustrativa. Mostrar na tela o aviso: "Não é recomendação de investimento."
 - Nunca commitar chaves de API (.env no .gitignore).
