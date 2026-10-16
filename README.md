@@ -50,8 +50,8 @@ A série `Soybeans` mudou de definição ao longo do tempo (aba "Description"):
 
 CIF Rotterdam inclui frete e seguro até a Europa; FOB Golfo não. Por isso a passagem de
 jan/2025 pode criar um degrau que não é variação de mercado. Os gráficos de soja marcam
-**jan/2021** e **jan/2025**, e a previsão trata essas datas como quebras estruturais (variável
-indicadora e backtest de robustez só com dados após a quebra). A série `Maize` (U.S. No. 2
+**jan/2021** e **jan/2025**, e a previsão refaz o backtest da soja só com dados desde jan/2021 como teste de robustez (sem variável
+indicadora: os modelos são univariados). A série `Maize` (U.S. No. 2
 yellow, FOB US Gulf) não tem mudança de definição registrada.
 
 ### Dados do CEPEA não são redistribuídos aqui
@@ -155,26 +155,97 @@ Como ler:
 - Tirar as quebras de jan/2021 e jan/2025 quase não muda a soja: a conclusão não depende delas.
 - Consequência para a previsão: o dólar defasado não entra como variável explicativa por padrão.
 
-## Metodologia da previsão (em implementação)
+## Previsão e backtest
 
-- Frequência **mensal**; modelos ARIMA/ETS (statsmodels) comparados com o modelo ingênuo
-  (repetir o último valor).
-- Backtest com janela deslizante (treino de 60 meses, horizontes de 1, 3 e 6 meses).
-  Métrica principal: MASE (erro do modelo ÷ erro do ingênuo), com intervalo de confiança.
-- **Teste de Diebold-Mariano com a correção de Harvey, Leybourne e Newbold (1997)** para
-  decidir se a diferença entre o modelo e o ingênuo é estatisticamente real. Por quê:
-  - em previsões de h meses à frente feitas a partir de origens consecutivas, as janelas de
-    previsão se **sobrepõem** (a previsão de 6 meses feita em janeiro e a feita em fevereiro
-    compartilham 5 meses). Os erros ficam autocorrelacionados até a defasagem h−1 mesmo que o
-    modelo seja bom, e a variância "ingênua" da diferença de perdas fica subestimada — o teste
-    acusaria diferenças significativas demais;
-  - por isso a variância de longo prazo é estimada com **erros padrão robustos (HAC,
-    Newey-West)** cobrindo h−1 defasagens;
-  - com cerca de 130 origens, a amostra é pequena e o teste original de Diebold-Mariano rejeita
-    a hipótese nula com frequência maior que a nominal. A correção de HLN ajusta a estatística
-    pelo fator √[(T + 1 − 2h + h(h−1)/T) / T] e usa a distribuição t de Student com T−1 graus
-    de liberdade em vez da normal.
-- Se o modelo não ganhar do ingênuo, isso será dito aqui.
+```powershell
+python -m monitor.previsao
+```
+
+Leva cerca de 3 minutos (um ajuste por origem, modelo e ordem candidata).
+
+**Modelos** (univariados, sobre o log do preço em US$/t; a previsão volta ao nível com exp, o
+que dá a mediana prevista):
+- **Ingênuo** (referência): repete o último valor. Intervalo de passeio aleatório (σ das
+  variações da janela × √h).
+- **ARIMA(p,1,q)** sem constante, com p, q ≤ 2. A ordem é escolhida **dentro de cada janela**
+  por AICc. ARIMA(0,1,0) é o próprio ingênuo e está entre as opções.
+- **ETS** de erro aditivo, sem sazonalidade: nível simples (A,N,N) ou tendência amortecida
+  (A,Ad,N), escolhido por AICc dentro de cada janela.
+- O dólar defasado não entra nos modelos: a análise de defasagem não achou poder preditivo.
+
+**Backtest:**
+- Janela deslizante de **60 meses**. Em cada origem, o modelo vê só os 60 meses que terminam
+  nela e prevê **1, 3 e 6 meses** à frente.
+- Nada do futuro entra no treino: um teste muda todos os preços a partir de um mês e confere
+  que as previsões feitas antes dele não mudam.
+- Erro = real − previsto, em US$/t.
+- **Razão de MAE (rMAE) vs ingênuo** = MAE do modelo ÷ MAE do ingênuo, nas mesmas origens e
+  no mesmo horizonte, fora da amostra. Abaixo de 1, o modelo erra menos que o ingênuo. Não é o
+  MASE de Hyndman, que divide pelo erro do ingênuo **dentro** da amostra de treino.
+- IC de 95% da rMAE por **bootstrap circular em blocos** (2.000 reamostragens), reamostrando
+  as origens em pares (modelo e ingênuo juntos). O bloco tem max(h, ⌈T^(1/3)⌉) origens.
+- **Diebold-Mariano com a correção de Harvey, Leybourne e Newbold (1997)**, com a mesma perda
+  da rMAE (erro absoluto):
+  - em previsões de h meses feitas a partir de origens consecutivas, as janelas de previsão se
+    **sobrepõem** (as previsões de 6 meses feitas em janeiro e em fevereiro compartilham 5
+    meses). Por isso os erros ficam autocorrelacionados até a defasagem h−1;
+  - a variância de longo prazo soma as autocovariâncias até h−1 com pesos iguais, como em DM
+    e HLN. Se esse estimador der negativo, o que pode acontecer em amostras pequenas, usa os
+    pesos de Bartlett (Newey-West);
+  - a estatística é multiplicada por √[(T + 1 − 2h + h(h−1)/T) / T] e comparada com a t de
+    Student com T−1 graus de liberdade. Isso corrige a tendência do DM original de rejeitar
+    demais em amostras pequenas. Um teste com 600 simulações MA(5) mostra que a taxa de
+    rejeição a 5% fica perto da nominal;
+  - os p-valores dos 18 testes (2 modelos × 3 horizontes × 3 casos) são ajustados por
+    Benjamini-Hochberg.
+- **Veredito:** "ganha" ou "perde" do ingênuo só se o DM for significativo depois do BH;
+  fora isso, "sem diferença significativa". Os ICs da rMAE são individuais, sem ajuste para
+  múltiplos testes.
+- **Robustez da soja:** o backtest é refeito só com dados **desde jan/2021**, por causa da
+  quebra de definição. Com a janela de 60 meses sobrariam só 9 origens, então essa variante
+  usa uma **janela de 36 meses**. Ela ainda inclui a quebra de jan/2025 (CIF Rotterdam → FOB
+  Golfo) e tem poucas origens (28 a 33), então é uma **checagem de sensibilidade**, não um
+  teste conclusivo.
+
+Resultado (edição do Pink Sheet de 02/10/2026; rMAE vs ingênuo com IC 95%, p do DM-HLN bruto e ajustado):
+
+| Caso | Modelo | h = 1 | h = 3 | h = 6 |
+|---|---|---|---|---|
+| Soja, 2010–2026 (T = 141/139/136) | ARIMA | 1,04 [0,99; 1,09] p 0,21 (BH 0,51) | 1,04 [0,98; 1,11] p 0,25 (BH 0,51) | 1,04 [0,98; 1,10] p 0,29 (BH 0,51) |
+| | ETS | 1,06 [1,02; 1,11] p 0,10 (BH 0,42) | 1,09 [1,02; 1,17] p 0,06 (BH 0,37) | 1,08 [0,96; 1,25] p 0,38 (BH 0,56) |
+| Soja, desde 2021 (T = 33/31/28) | ARIMA | 1,22 [1,08; 1,38] p 0,007 (BH 0,12) | 1,20 [1,08; 1,36] p 0,03 (BH 0,23) | 1,02 [0,86; 1,23] p 0,79 (BH 0,80) |
+| | ETS | 1,02 [0,91; 1,18] p 0,70 (BH 0,80) | 1,02 [0,90; 1,21] p 0,80 (BH 0,80) | 1,09 [1,01; 1,34] p 0,12 (BH 0,42) |
+| Milho, 2010–2026 (T = 141/139/136) | ARIMA | 0,98 [0,90; 1,07] p 0,61 (BH 0,79) | 1,01 [0,95; 1,08] p 0,71 (BH 0,80) | 1,02 [0,95; 1,07] p 0,62 (BH 0,79) |
+| | ETS | 1,01 [1,00; 1,04] p 0,27 (BH 0,51) | 1,02 [1,00; 1,05] p 0,31 (BH 0,51) | 1,02 [1,00; 1,07] p 0,27 (BH 0,51) |
+
+**Os modelos não ganham do ingênuo.** Em nenhum dos 18 casos o ARIMA ou o ETS erra
+significativamente menos que repetir o último valor. Na maioria, a rMAE fica um pouco acima
+de 1. A única rMAE abaixo de 1 (ARIMA no milho com h = 1, 0,98) tem IC que inclui 1 e p = 0,61.
+- Alguns ICs da rMAE ficam inteiros acima de 1 (por exemplo, o ETS na soja). Nesses casos o
+  modelo provavelmente erra **mais** que o ingênuo, mas o DM-HLN com BH não confirma.
+- Na soja desde 2021, o ARIMA erra cerca de 20% a mais que o ingênuo em 1 e 3 meses
+  (p bruto 0,007 e 0,03), mas o resultado não sobrevive ao BH. Nessa checagem de
+  sensibilidade, a conclusão da série completa (nenhum ganho sobre o ingênuo) se mantém.
+- Nas janelas, a ordem mais escolhida para a soja é ARIMA(0,1,0), que é o próprio ingênuo
+  (55% das origens). O ETS escolhe quase sempre (A,N,N) com suavização alta, que fica perto do
+  ingênuo. Isso é compatível com preços mensais que se comportam como passeio aleatório.
+- **Cobertura dos intervalos de 95%** no backtest: 87% a 94% na série completa, um pouco
+  abaixo do nominal. Os intervalos subestimam a incerteza (choques de preço maiores que os da
+  janela de treino).
+
+**Previsão ilustrativa** (últimos 60 meses até set/2026, intervalo de 95%, US$/t): os três
+modelos ficam praticamente iguais ao último valor.
+
+| | Último (set/2026) | out/2026 | dez/2026 | mar/2027 |
+|---|---|---|---|---|
+| Soja, ingênuo | 524,0 | 524,0 [472,0; 581,7] | 524,0 [437,2; 628,0] | 524,0 [405,6; 676,9] |
+| Milho, ingênuo | 239,6 | 239,6 [213,9; 268,4] | 239,6 [196,9; 291,6] | 239,6 [181,5; 316,3] |
+
+Como nenhum modelo ganhou do ingênuo, a previsão a mostrar no dashboard é a **ingênua com
+intervalo**: o valor central é o último preço e o intervalo dá a faixa de incerteza. A
+previsão está em US$/t; convertê-la para R$ exigiria também prever o dólar.
+
+> **Não é recomendação de investimento.** A previsão é ilustrativa.
 
 ## Como rodar
 
@@ -222,11 +293,15 @@ Etapas concluídas:
 - 2 — Parquet em `data/processed/` com atualização incremental e cache;
 - 3 — leitor do Pink Sheet (`wb_soja`, `wb_milho`), recusando edições mais antigas;
 - 4 — análise mensal dólar × soja/milho em US$ e R$ (correlação de retornos log);
-- 5 — defasagem: ADF, correlação cruzada e Granger com BH; sem evidência de que o dólar antecipe os preços.
+- 5 — defasagem: ADF, correlação cruzada e Granger com BH; sem evidência de que o dólar antecipe os preços;
+- 6 — previsão ARIMA/ETS com backtest (janela de 60 meses, h = 1, 3, 6; rMAE vs ingênuo + DM-HLN):
+  **sem evidência de que algum modelo ganhe do ingênuo**, nem na soja só desde 2021.
 
 Decisões tomadas:
 - Dashboard público só com BCB + Banco Mundial; CEPEA apenas local, fora do git.
 - Previsão mensal (frequência do Pink Sheet), comparada ao modelo ingênuo com DM-HLN.
+- Previsão exibida: ingênua com intervalo de 95%, em US$/t (os modelos não a superaram).
+- Robustez da soja desde jan/2021 com janela de 36 meses (com 60 sobrariam 9 origens).
 - Quebras da soja (jan/2021, jan/2025) tratadas como quebras estruturais.
 
 Pendências externas:
@@ -235,6 +310,8 @@ Pendências externas:
 
 ## Próximos passos
 
-1. Previsão ARIMA/ETS com backtest contra o ingênuo (MASE + DM-HLN).
-2. Dashboard Streamlit + Plotly com fontes, licenças e aviso de não recomendação.
-3. Publicar no Streamlit Community Cloud.
+1. Dashboard Streamlit + Plotly com fontes, licenças e aviso de não recomendação; mostrar
+   a tabela do backtest e a previsão ingênua com intervalo. Guardar em cache o resultado do
+   backtest (~3 min) em vez de recalcular a cada acesso.
+2. Publicar no Streamlit Community Cloud.
+3. (Opcional) Intervalos mais largos ou empíricos, já que a cobertura de 95% ficou em 87–94%.
