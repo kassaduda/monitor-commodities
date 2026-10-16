@@ -247,6 +247,20 @@ previsão está em US$/t; convertê-la para R$ exigiria também prever o dólar.
 
 > **Não é recomendação de investimento.** A previsão é ilustrativa.
 
+## Dashboard
+
+```powershell
+python -m monitor.resultados          # ~3 min: refaz backtest e análises e grava data/processed/resultados_*
+streamlit run app/streamlit_app.py
+```
+
+O app só **lê** arquivos (`ptax_venda`, `wb_soja`, `wb_milho` e `resultados_*.parquet`/`resultados_meta.json`);
+não recalcula modelos nem baixa dados. Os `resultados_*` derivam só de BCB e Banco Mundial (a coluna `fonte`
+registra isso e `monitor.resultados.validar_fontes` recusa qualquer menção a CEPEA/CONAB), por isso entram no git.
+Abas: Dólar (diário) · Soja e milho (US$/t, R$/t, R$/sc 60 kg, com as quebras de definição) · Dólar × commodities
+(correlação e defasagem, exploratório) · Backtest e previsão (rMAE e veredito; previsão ingênua com IC 95%) ·
+Fontes e licenças (CC BY 4.0 do Banco Mundial; por que CEPEA e CONAB não estão publicados).
+
 ## Como rodar
 
 Requer Python 3.12.
@@ -295,7 +309,8 @@ Etapas concluídas:
 - 4 — análise mensal dólar × soja/milho em US$ e R$ (correlação de retornos log);
 - 5 — defasagem: ADF, correlação cruzada e Granger com BH; sem evidência de que o dólar antecipe os preços;
 - 6 — previsão ARIMA/ETS com backtest (janela de 60 meses, h = 1, 3, 6; rMAE vs ingênuo + DM-HLN):
-  **sem evidência de que algum modelo ganhe do ingênuo**, nem na soja só desde 2021.
+  **sem evidência de que algum modelo ganhe do ingênuo**, nem na soja só desde 2021;
+- 7 — dashboard Streamlit + Plotly em `app/`, lendo `data/processed/resultados_*` (gerados por `python -m monitor.resultados`).
 
 Decisões tomadas:
 - Dashboard público só com BCB + Banco Mundial; CEPEA apenas local, fora do git.
@@ -314,10 +329,8 @@ Pendências externas:
 
 ## Próximos passos
 
-1. Dashboard Streamlit + Plotly com fontes, licenças e aviso de não recomendação; mostrar
-   a tabela do backtest e a previsão ingênua com intervalo. Guardar em cache o resultado do
-   backtest (~3 min) em vez de recalcular a cada acesso.
-2. Publicar no Streamlit Community Cloud.
-3. (Opcional) Intervalos mais largos ou empíricos, já que a cobertura de 95% ficou em 87–94%.
-4. Acompanhar a resposta da CONAB (prazo 09/11/2026) e do CEPEA. Só codar o leitor da CONAB
+1. Publicar no Streamlit Community Cloud (precisa de `requirements.txt` com `-e .` ou de instalar o pacote `monitor`).
+   Rodar `python -m monitor.resultados` após cada nova edição do Pink Sheet e commitar os `resultados_*`.
+2. (Opcional) Intervalos mais largos ou empíricos, já que a cobertura de 95% ficou em 87–94%.
+3. Acompanhar a resposta da CONAB (prazo 09/11/2026) e do CEPEA. Só codar o leitor da CONAB
    ou publicar séries do CEPEA se a resposta permitir, registrando a licença no README.
