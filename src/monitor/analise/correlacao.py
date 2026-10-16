@@ -3,7 +3,6 @@
 from dataclasses import dataclass
 
 import pandas as pd
-from scipy import stats
 
 
 @dataclass(frozen=True)
@@ -29,6 +28,8 @@ class ResultadoCorrelacao:
 
 def correlacao(x: pd.DataFrame, y: pd.DataFrame) -> ResultadoCorrelacao:
     """Pearson nas datas presentes nas duas séries (r adimensional)."""
+    from scipy import stats  # import tardio: o dashboard lê a base sem precisar do scipy
+
     juntos = x[["data", "valor"]].merge(y[["data", "valor"]], on="data", suffixes=("_x", "_y"))
     if len(juntos) < 3:
         raise ValueError(f"São necessárias ao menos 3 datas em comum (há {len(juntos)})")

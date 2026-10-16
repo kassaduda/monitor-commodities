@@ -261,6 +261,24 @@ Abas: Dólar (diário) · Soja e milho (US$/t, R$/t, R$/sc 60 kg, com as quebras
 (correlação e defasagem, exploratório) · Backtest e previsão (rMAE e veredito; previsão ingênua com IC 95%) ·
 Fontes e licenças (CC BY 4.0 do Banco Mundial; por que CEPEA e CONAB não estão publicados).
 
+### Deploy no Streamlit Community Cloud
+
+O deploy é leve: o `requirements.txt` da raiz traz só `streamlit`, `plotly`, `pandas`, `pyarrow` e `numpy`
+(versões fixadas iguais às do `.venv`). `scipy` e `statsmodels` (análise e backtest) ficam só no `pyproject.toml`. O app
+acha o pacote `monitor` por caminho relativo à raiz (`src/` entra no `sys.path` no início de `app/streamlit_app.py`),
+sem `pip install -e .`. Um teste (`tests/test_app_leve.py`) falha se o app passar a importar scipy ou statsmodels.
+
+1. Rode `python -m monitor.resultados` se houver nova edição do Pink Sheet, confira com `pytest -q` e commite os
+   `data/processed/resultados_*` e os Parquet atualizados. O app não baixa nem recalcula nada.
+2. Envie o repositório ao GitHub (público: o conteúdo é só BCB e Banco Mundial; `data/raw/` e `cepea_*` ficam no `.gitignore`).
+3. Em <https://share.streamlit.io> (conta GitHub): **Create app** → repositório, branch `main`, arquivo principal
+   `app/streamlit_app.py`.
+4. Em **Advanced settings**, escolha **Python 3.12** (o `pyproject.toml` exige `>=3.12,<3.13`). Não há *secrets*.
+5. **Deploy**. Para atualizar, basta dar `git push`; o Cloud reinstala se o `requirements.txt` mudar.
+
+Testado em um venv novo e vazio com `pip install -r requirements.txt` e o app rodando headless (5 abas, sem exceções,
+scipy e statsmodels não carregados).
+
 ## Como rodar
 
 Requer Python 3.12.
@@ -329,7 +347,7 @@ Pendências externas:
 
 ## Próximos passos
 
-1. Publicar no Streamlit Community Cloud (precisa de `requirements.txt` com `-e .` ou de instalar o pacote `monitor`).
+1. Publicar no Streamlit Community Cloud (passos em "Deploy"; `requirements.txt` pronto) e colocar o link no README.
    Rodar `python -m monitor.resultados` após cada nova edição do Pink Sheet e commitar os `resultados_*`.
 2. (Opcional) Intervalos mais largos ou empíricos, já que a cobertura de 95% ficou em 87–94%.
 3. Acompanhar a resposta da CONAB (prazo 09/11/2026) e do CEPEA. Só codar o leitor da CONAB

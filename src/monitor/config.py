@@ -40,4 +40,14 @@ QUEBRAS_DEFINICAO: dict[str, list[tuple[date, str]]] = {
 
 # CEPEA e CONAB: apenas locais; identificadores definidos quando houver arquivo baixado manualmente.
 
+# Resultados do backtest e das análises (gerados por monitor.resultados, lidos pelo dashboard).
+ARQUIVOS_RESULTADOS: dict[str, str] = {
+    "backtest": "resultados_backtest.parquet",
+    "previsao": "resultados_previsao.parquet",
+    "correlacao": "resultados_correlacao.parquet",
+    "defasagem": "resultados_defasagem.parquet",
+    "adf": "resultados_adf.parquet",
+}
+ARQUIVO_RESULTADOS_META: str = "resultados_meta.json"
+
 AVISO_INVESTIMENTO: str = "Não é recomendação de investimento."

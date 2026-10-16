@@ -8,7 +8,6 @@ import streamlit as st
 from monitor import config
 from monitor.analise.base import BaseMensal, montar_base
 from monitor.armazenamento import caminho_parquet, ler_serie
-from monitor.resultados import ARQUIVO_META, ARQUIVOS
 
 
 @st.cache_data
@@ -23,9 +22,9 @@ def base_mensal() -> BaseMensal:
 
 @st.cache_data
 def resultado(nome: str) -> pd.DataFrame:
-    return pd.read_parquet(config.DIR_PROCESSED / ARQUIVOS[nome])
+    return pd.read_parquet(config.DIR_PROCESSED / config.ARQUIVOS_RESULTADOS[nome])
 
 
 @st.cache_data
 def meta() -> dict:
-    return json.loads((config.DIR_PROCESSED / ARQUIVO_META).read_text(encoding="utf-8"))
+    return json.loads((config.DIR_PROCESSED / config.ARQUIVO_RESULTADOS_META).read_text(encoding="utf-8"))

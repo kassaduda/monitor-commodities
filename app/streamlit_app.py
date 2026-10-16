@@ -9,7 +9,10 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
-sys.path.insert(0, str(Path(__file__).parent))  # permite `import carga` com `streamlit run` de qualquer pasta
+RAIZ = Path(__file__).resolve().parents[1]
+# `app/` (carga, ui, graficos) e `src/` (pacote monitor) por caminho relativo à raiz: sem `pip install -e .`
+for pasta in (RAIZ / "app", RAIZ / "src"):
+    sys.path.insert(0, str(pasta))
 
 import carga  # noqa: E402
 import ui  # noqa: E402

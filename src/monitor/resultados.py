@@ -19,14 +19,8 @@ from monitor.previsao.execucao import avaliar_casos, casos, previsoes_ilustrativ
 
 FONTES_PERMITIDAS = f"{config.FONTE_BCB}; {config.FONTE_WB}"
 FONTES_PROIBIDAS = ("cepea", "conab", "esalq")
-ARQUIVOS = {
-    "backtest": "resultados_backtest.parquet",
-    "previsao": "resultados_previsao.parquet",
-    "correlacao": "resultados_correlacao.parquet",
-    "defasagem": "resultados_defasagem.parquet",
-    "adf": "resultados_adf.parquet",
-}
-ARQUIVO_META = "resultados_meta.json"
+ARQUIVOS = config.ARQUIVOS_RESULTADOS
+ARQUIVO_META = config.ARQUIVO_RESULTADOS_META
 
 
 def tabela_correlacao(base) -> pd.DataFrame:
