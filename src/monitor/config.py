@@ -17,6 +17,7 @@ BCB_SERIES: dict[str, int] = {
 # Nome exato devolvido pelos metadados do SGS (campo nomeCompleto); usado no README e no dashboard.
 BCB_SERIE_1_NOME: str = "Taxa de câmbio - Livre - Dólar americano (venda) - diário"
 BCB_SERIE_1_UNIDADE: str = "R$/US$"
+FONTE_BCB: str = "Banco Central do Brasil - SGS"
 
 # CEPEA e CONAB: identificadores definidos nas etapas 3 e 4, após conferir os arquivos.
 
