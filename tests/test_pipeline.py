@@ -4,8 +4,11 @@ from datetime import date
 
 import pandas as pd
 
+from monitor import config
 from monitor.armazenamento import ler_serie
-from monitor.pipeline import atualizar_dolar
+from monitor.coleta.worldbank import caminho_arquivo
+from monitor.pipeline import atualizar_dolar, atualizar_pink_sheet
+from pink_sheet_util import criar_planilha
 
 HOJE = date(2026, 10, 14)
 
@@ -65,3 +68,59 @@ def test_clone_novo_sem_cache_bruto_nao_baixa_o_historico(api, tmp_path) -> None
     assert api == [(date(2026, 1, 1), date(2026, 10, 21))]
     assert r.linhas_novas == 1
     assert ler_serie(r.caminho)["data"].is_unique
+
+
+# --- Pink Sheet ------------------------------------------------------------------
+
+EDICAO_OUT = [  # [período, WTI, soja, milho]
+    ["2026M07", 65.0, 478, 213.4],
+    ["2026M08", 63.1, 482, 224],
+    ["2026M09", 62.0, 524, 239.6],
+]
+
+
+def _pink(tmp_path, linhas):
+    criar_planilha(caminho_arquivo(tmp_path / "raw"), linhas)
+    return atualizar_pink_sheet(dir_raw=tmp_path / "raw", dir_processed=tmp_path / "processed")
+
+
+def test_pink_sheet_sem_arquivo_nao_faz_nada(tmp_path) -> None:
+    assert atualizar_pink_sheet(dir_raw=tmp_path / "raw", dir_processed=tmp_path / "processed") == []
+    assert not (tmp_path / "processed").exists()
+
+
+def test_pink_sheet_cria_parquets_de_soja_e_milho(tmp_path) -> None:
+    resultados = _pink(tmp_path, EDICAO_OUT)
+    assert [r.caminho.name for r in resultados] == ["wb_soja.parquet", "wb_milho.parquet"]
+    soja = ler_serie(resultados[0].caminho)
+    milho = ler_serie(resultados[1].caminho)
+    assert soja["valor"].tolist() == [478.0, 482.0, 524.0]
+    assert milho["valor"].tolist() == [213.4, 224.0, 239.6]
+    assert (soja["unidade"] == config.WB_UNIDADE).all()
+    assert all(r.alterado and r.linhas_novas == 3 for r in resultados)
+
+
+def test_pink_sheet_idempotente_duas_execucoes_nao_mudam_os_arquivos(tmp_path) -> None:
+    r1 = _pink(tmp_path, EDICAO_OUT)
+    antes = [(_sha256(r.caminho), r.caminho.stat().st_mtime_ns) for r in r1]
+
+    r2 = atualizar_pink_sheet(dir_raw=tmp_path / "raw", dir_processed=tmp_path / "processed")
+
+    assert all(not r.alterado and r.linhas_novas == 0 for r in r2)
+    assert [(_sha256(r.caminho), r.caminho.stat().st_mtime_ns) for r in r2] == antes
+
+
+def test_pink_sheet_nova_edicao_acrescenta_mes_e_aplica_revisao(tmp_path) -> None:
+    _pink(tmp_path, EDICAO_OUT)
+    edicao_nov = [
+        ["2026M08", 63.1, 482, 224],
+        ["2026M09", 62.0, 521, 239.6],  # revisão da soja de set/2026
+        ["2026M10", 61.5, 530, 241.0],
+    ]
+    r_soja, r_milho = _pink(tmp_path, edicao_nov)
+
+    soja = ler_serie(r_soja.caminho)
+    assert soja["data"].is_unique
+    assert soja["data"].dt.strftime("%Y-%m").tolist() == ["2026-07", "2026-08", "2026-09", "2026-10"]
+    assert soja["valor"].tolist() == [478.0, 482.0, 521.0, 530.0]  # jul/2026 mantido, set revisado
+    assert r_soja.linhas_novas == 1 and r_milho.linhas_novas == 1
