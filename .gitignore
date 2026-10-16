@@ -6,5 +6,7 @@ __pycache__/
 .pytest_cache/
 .streamlit/secrets.toml
 data/raw/
+# CEPEA: não redistribuir séries sem autorização formal (ver README)
+data/processed/cepea_*.parquet
 *.sqlite
 *.egg-info/

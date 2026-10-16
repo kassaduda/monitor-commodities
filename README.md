@@ -12,10 +12,22 @@ Cruza a cotação do dólar com os preços de soja e milho, analisa a relação 
 | Dólar — PTAX de fechamento, venda (R$/US$), diário | Banco Central do Brasil — SGS, série 1: *Taxa de câmbio - Livre - Dólar americano (venda) - diário* | Dados públicos, com citação da fonte |
 | Soja — Indicador CEPEA/ESALQ Paranaguá (principal) e Paraná (opcional) | CEPEA/ESALQ-USP | [CC BY-NC 4.0](https://www.cepea.org.br/br/licenca-de-uso-de-dados.aspx) — uso **não comercial**, com crédito |
 | Milho — Indicador ESALQ/B3 (Campinas) | CEPEA/ESALQ-USP | [CC BY-NC 4.0](https://www.cepea.org.br/br/licenca-de-uso-de-dados.aspx) — uso **não comercial**, com crédito |
-| Preços por UF e safra (contexto) | CONAB — Portal de Informações | Dados abertos públicos, com citação da fonte |
+| Preços por UF e safra (contexto) | CONAB — Preços de Mercado / Portal de Informações | Licença dos dados **não declarada** (em consulta ao SIC da CONAB); páginas gov.br sob CC BY-ND 3.0 |
 
-Os arquivos em `data/processed/` são derivados dessas fontes e redistribuídos nos mesmos
-termos. Os dados do CEPEA neste repositório **não podem ser usados para fins comerciais**.
+### Dados do CEPEA não são redistribuídos aqui
+
+A licença de dados do CEPEA (CC BY-NC 4.0) permite uso não comercial com crédito, mas a
+[Política de Direitos Autorais](https://www.cepea.org.br/br/politica-de-direitos-autorais-1.aspx)
+exige autorização formal para retransmitir conteúdo e diz que "não é permitida [...] a
+transmissão de séries de preços". Por isso, até haver autorização por escrito do CEPEA:
+
+- as planilhas são baixadas **manualmente** no site do CEPEA (formulário de download) e salvas
+  em `data/raw/cepea/`; o código não acessa o site do CEPEA;
+- os arquivos `data/processed/cepea_*.parquet` ficam **fora do repositório** (`.gitignore`);
+- o dashboard público não exibe as séries do CEPEA; elas aparecem apenas ao rodar localmente.
+
+Os demais arquivos de `data/processed/` são derivados das fontes públicas acima e
+redistribuídos nos termos de cada uma.
 
 ## Período
 
@@ -41,7 +53,7 @@ python -m monitor.pipeline
 
 - `data/raw/` (fora do git): respostas brutas das fontes, em cache. Anos fechados não são
   baixados de novo; o ano corrente, no máximo uma vez por dia.
-- `data/processed/` (no git): uma série limpa por arquivo Parquet, nas colunas
+- `data/processed/` (no git, exceto `cepea_*.parquet`): uma série limpa por arquivo Parquet, nas colunas
   `data, serie, valor, unidade, fonte`. A atualização parte da última data já salva, busca só
   o que falta, nunca duplica datas e não reescreve o arquivo quando não há dados novos.
 
