@@ -58,3 +58,7 @@ Apenas locais (não redistribuir):
 - Fazer uma etapa por vez e rodar os testes ao final de cada uma.
 - Sugerir mensagem de commit ao concluir cada etapa (título com até 70 caracteres,
   detalhe no corpo) e esperar aprovação antes de commitar.
+- Não reimprimir código no chat: mostrar só resumo, caminhos dos arquivos e `pytest -q`.
+- Mostrar DataFrames com `head()`/`tail()`, nunca inteiros.
+- Não reler arquivos grandes sem necessidade.
+- Ao fim de cada etapa, atualizar "Estado atual" e "Próximos passos" no README antes do commit.

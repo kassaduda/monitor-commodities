@@ -1,7 +1,7 @@
 # Monitor de Commodities
 
 Cruza a cotação do dólar com os preços de soja e milho, analisa a relação entre eles
-(incluindo defasagem) e mostra uma previsão semanal ilustrativa em um dashboard Streamlit.
+(incluindo defasagem) e mostra uma previsão mensal ilustrativa em um dashboard Streamlit.
 
 > **Não é recomendação de investimento.** A previsão é ilustrativa.
 
@@ -171,6 +171,26 @@ nenhum arquivo.
   `data, serie, valor, unidade, fonte`. A atualização parte da última data já salva, busca só
   o que falta, nunca duplica datas e não reescreve o arquivo quando não há dados novos.
 
-## Status
+## Estado atual
 
-Em construção — ver etapas no histórico de commits.
+Etapas concluídas:
+- 0 — estrutura do projeto; 1 — coleta e limpeza do dólar (BCB SGS 1);
+- 2 — Parquet em `data/processed/` com atualização incremental e cache;
+- 3 — leitor do Pink Sheet (`wb_soja`, `wb_milho`), recusando edições mais antigas;
+- 4 — análise mensal dólar × soja/milho em US$ e R$ (correlação de retornos log).
+
+Decisões tomadas:
+- Dashboard público só com BCB + Banco Mundial; CEPEA apenas local, fora do git.
+- Previsão mensal (frequência do Pink Sheet), comparada ao modelo ingênuo com DM-HLN.
+- Quebras da soja (jan/2021, jan/2025) tratadas como quebras estruturais.
+
+Pendências externas:
+- CONAB: pedido sobre a licença dos dados no Fala.BR, sem resposta; leitor não codado.
+- CEPEA: e-mail pedindo autorização formal para redistribuir as séries, sem resposta.
+
+## Próximos passos
+
+1. Análise de defasagem: testar se o dólar antecipa soja e milho.
+2. Previsão ARIMA/ETS com backtest contra o ingênuo (MASE + DM-HLN).
+3. Dashboard Streamlit + Plotly com fontes, licenças e aviso de não recomendação.
+4. Publicar no Streamlit Community Cloud.
