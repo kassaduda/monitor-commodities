@@ -305,8 +305,12 @@ Decisões tomadas:
 - Quebras da soja (jan/2021, jan/2025) tratadas como quebras estruturais.
 
 Pendências externas:
-- CONAB: pedido sobre a licença dos dados no Fala.BR, sem resposta; leitor não codado.
-- CEPEA: e-mail pedindo autorização formal para redistribuir as séries, sem resposta.
+- CONAB: pergunta sobre a redistribuição dos dados registrada no Informa.BR em 15/10/2026
+  (protocolo 21213.000719/2026-62), com prazo de resposta até 09/11/2026. Até haver
+  licença, o leitor não é codado e os dados não são redistribuídos.
+- CEPEA: e-mail pedindo autorização formal para redistribuir as séries enviado em
+  15/10/2026, sem resposta até o momento. Até haver autorização por escrito, as séries
+  ficam só na execução local.
 
 ## Próximos passos
 
@@ -315,3 +319,5 @@ Pendências externas:
    backtest (~3 min) em vez de recalcular a cada acesso.
 2. Publicar no Streamlit Community Cloud.
 3. (Opcional) Intervalos mais largos ou empíricos, já que a cobertura de 95% ficou em 87–94%.
+4. Acompanhar a resposta da CONAB (prazo 09/11/2026) e do CEPEA. Só codar o leitor da CONAB
+   ou publicar séries do CEPEA se a resposta permitir, registrando a licença no README.
