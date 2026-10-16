@@ -1,5 +1,6 @@
 """Armazenamento das séries limpas em Parquet (um arquivo por série em data/processed/)."""
 
+import json
 from pathlib import Path
 
 import pandas as pd
@@ -41,5 +42,27 @@ def salvar_serie(df: pd.DataFrame, caminho: Path) -> bool:
     caminho.parent.mkdir(parents=True, exist_ok=True)
     temporario = caminho.with_suffix(".tmp")
     df.to_parquet(temporario, index=False, compression="zstd")
+    temporario.replace(caminho)
+    return True
+
+
+def caminho_edicoes(dir_processed: Path) -> Path:
+    return dir_processed / "_edicoes.json"
+
+
+def ler_json(caminho: Path) -> dict:
+    """Lê um JSON de metadados; devolve {} se o arquivo não existir."""
+    if not caminho.exists():
+        return {}
+    return json.loads(caminho.read_text(encoding="utf-8"))
+
+
+def salvar_json(dados: dict, caminho: Path) -> bool:
+    """Grava o JSON só se o conteúdo mudou. Retorna True se o arquivo foi (re)escrito."""
+    if ler_json(caminho) == dados:
+        return False
+    caminho.parent.mkdir(parents=True, exist_ok=True)
+    temporario = caminho.with_suffix(".tmp")
+    temporario.write_text(json.dumps(dados, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     temporario.replace(caminho)
     return True

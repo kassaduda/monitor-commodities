@@ -122,6 +122,12 @@ Os Parquet do Pink Sheet (`wb_soja`, `wb_milho`) guardam todo o histórico do ar
 1960); as análises usam o período em comum com o dólar (desde jan/2010). Uma nova edição do
 arquivo acrescenta os meses novos e aplica as revisões dos meses já salvos.
 
+A data da edição ("Updated on ..." no topo da planilha) fica registrada em
+`data/processed/_edicoes.json`. Um arquivo de edição **mais antiga** que a última processada,
+ou sem essa data, é recusado com mensagem explicando o motivo, e nada é alterado — isso evita
+desfazer revisões já salvas por engano. Reprocessar a mesma edição é permitido e não muda
+nenhum arquivo.
+
 - `data/raw/` (fora do git): respostas brutas das fontes, em cache. Anos fechados não são
   baixados de novo; o ano corrente, no máximo uma vez por dia.
 - `data/processed/` (no git, exceto `cepea_*.parquet`): uma série limpa por arquivo Parquet, nas colunas
