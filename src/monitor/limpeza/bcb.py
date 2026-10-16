@@ -2,7 +2,7 @@
 
 import pandas as pd
 
-from monitor.limpeza import COLUNAS_PADRAO
+from monitor.limpeza import COLUNAS_PADRAO, dataframe_vazio
 
 
 def limpar_sgs(registros: list[dict[str, str]], serie: str, unidade: str, fonte: str) -> pd.DataFrame:
@@ -12,8 +12,7 @@ def limpar_sgs(registros: list[dict[str, str]], serie: str, unidade: str, fonte:
     silenciosamente).
     """
     if not registros:
-        vazio = pd.DataFrame(columns=COLUNAS_PADRAO)
-        return vazio.astype({"data": "datetime64[ns]", "valor": "float64"})
+        return dataframe_vazio()
 
     bruto = pd.DataFrame(registros)
     faltando = {"data", "valor"} - set(bruto.columns)

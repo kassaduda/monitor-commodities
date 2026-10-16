@@ -33,6 +33,18 @@ pip install -e ".[dev]"
 pytest
 ```
 
+## Atualizar os dados
+
+```powershell
+python -m monitor.pipeline
+```
+
+- `data/raw/` (fora do git): respostas brutas das fontes, em cache. Anos fechados não são
+  baixados de novo; o ano corrente, no máximo uma vez por dia.
+- `data/processed/` (no git): uma série limpa por arquivo Parquet, nas colunas
+  `data, serie, valor, unidade, fonte`. A atualização parte da última data já salva, busca só
+  o que falta, nunca duplica datas e não reescreve o arquivo quando não há dados novos.
+
 ## Status
 
 Em construção — ver etapas no histórico de commits.
