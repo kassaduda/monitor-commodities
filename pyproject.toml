@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "monitor-commodities"
+version = "0.1.0"
+description = "Dólar (BCB) x soja e milho (CEPEA/CONAB): visualização, defasagem e previsão ilustrativa."
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "pandas>=2.2,<3",
+    "pyarrow>=15",
+    "requests>=2.31",
+    "xlrd>=2.0",        # planilhas .xls do CEPEA
+    "openpyxl>=3.1",
+    "statsmodels>=0.14",
+    "streamlit>=1.35",
+    "plotly>=5.20",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "responses>=0.25",  # mock de HTTP nos testes de coleta
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
