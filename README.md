@@ -74,6 +74,43 @@ redistribuídos nos termos de cada uma.
 Desde 2010 ou o máximo disponível em cada fonte. As análises que cruzam séries usam apenas o
 período em comum entre elas (detalhado aqui ao final da implementação).
 
+## Análise
+
+```powershell
+python -m monitor.analise
+```
+
+- **Período em comum:** 2010-01 a 2026-09 (201 meses). O dólar começa em jan/2010; o Pink
+  Sheet termina no último mês publicado. Meses fora desse período (inclusive o mês corrente,
+  cuja média da PTAX ainda é parcial) ficam fora de todas as contas.
+- **Dólar mensal:** média simples da PTAX venda diária de cada mês (R$/US$) — mesma base do
+  Pink Sheet, que publica médias mensais.
+- **Conversão:** R$/t = US$/t × PTAX média do mês; por saca de 60 kg = valor por tonelada ×
+  60/1000. Cada resultado traz a unidade (`US$/t`, `R$/t`, `US$/sc 60 kg`, `R$/sc 60 kg`,
+  `R$/US$`, `% m/m (...)`, `log-retorno mensal (...)`).
+- **Variação mensal:** variação % sobre o mês anterior; exige meses consecutivos.
+- **Correlação de retornos:** Pearson sobre retornos log mensais (não sobre níveis, que dão
+  correlação espúria por causa da tendência), com IC de 95% e p-valor.
+
+Resultado com a edição do Pink Sheet de 02/10/2026 (n = 200 retornos, 2010-02 a 2026-09):
+
+| Retorno log mensal do dólar (R$/US$) × | r | IC 95% |
+|---|---|---|
+| Soja em **US$/t** | −0,262 | −0,387 a −0,128 |
+| Soja em **R$/t** | +0,423 | +0,302 a +0,531 |
+| Milho em **US$/t** | −0,212 | −0,341 a −0,076 |
+| Milho em **R$/t** | +0,346 | +0,218 a +0,463 |
+
+Como ler:
+- **Em R$/t a correlação positiva é em boa parte mecânica**: o preço em R$ é o preço em US$
+  multiplicado pelo câmbio, então o retorno em R$ ≈ retorno em US$ + retorno do dólar. Mesmo
+  com dólar e preço internacional independentes, a correlação sairia positiva (há um teste
+  com dados sintéticos que mostra isso).
+- **Em US$/t a correlação é negativa e modesta**: nos meses em que o dólar sobe frente ao real,
+  os preços internacionais de soja e milho em dólar tendem a cair um pouco. É uma associação
+  no mesmo mês, não causalidade; se o dólar *antecipa* os preços é a pergunta da análise de
+  defasagem (próxima etapa).
+
 ## Metodologia da previsão (em implementação)
 
 - Frequência **mensal**; modelos ARIMA/ETS (statsmodels) comparados com o modelo ingênuo
