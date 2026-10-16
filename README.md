@@ -109,7 +109,51 @@ Como ler:
 - **Em US$/t a correlação é negativa e modesta**: nos meses em que o dólar sobe frente ao real,
   os preços internacionais de soja e milho em dólar tendem a cair um pouco. É uma associação
   no mesmo mês, não causalidade; se o dólar *antecipa* os preços é a pergunta da análise de
-  defasagem (próxima etapa).
+  defasagem (abaixo).
+
+## Análise de defasagem
+
+```powershell
+python -m monitor.analise.defasagem
+```
+
+Pergunta: o dólar de meses anteriores ajuda a explicar o preço de soja e milho hoje? Tudo em
+**retornos log mensais**: dólar (R$/US$) contra soja e milho em **US$/t** (em R$/t haveria o
+efeito mecânico da conversão). Defasagem k = dólar no mês t−k contra o preço no mês t.
+
+- **Estacionariedade (ADF, com constante, defasagens por AIC):** os três retornos rejeitam a
+  raiz unitária com folga — dólar −9,57; soja −12,65; milho −9,05 (estatística ADF,
+  adimensional; valor crítico de 5%: −2,88; p < 10⁻¹⁴). Os testes abaixo são válidos sobre eles.
+- **Correlação cruzada:** Pearson (r, adimensional) para k = 0 a 12 meses.
+- **Granger (exploratório):** teste F "o dólar antecipa o preço" com p = 1 a 12 defasagens de
+  cada série. Granger mede ganho de previsão, não causa econômica.
+- **Soja com e sem as quebras de definição:** a variante "sem quebras" exclui os retornos de
+  jan/2021 e jan/2025 (que comparam duas definições da série) e toda linha que os usa como
+  defasagem.
+- **Múltiplos testes:** são 75 testes (3 casos × 13 correlações + 12 Granger). Os p-valores são
+  ajustados por **Benjamini-Hochberg** sobre todos juntos (taxa de falsas descobertas de 5%).
+  Os testes são correlacionados entre si (defasagens vizinhas, soja com e sem quebras); o BH é
+  válido sob dependência positiva, mas isso continua sendo exploração, não confirmação. Sem
+  ajuste, 75 testes a 5% dariam cerca de 3 a 4 falsos positivos só por acaso (75 × 0,05 ≈ 3,75).
+
+Resultado (edição do Pink Sheet de 02/10/2026; retornos de 2010-02 a 2026-09):
+
+| Retorno do dólar × | k = 0: r (p BH) | Menor p bruto com k ≥ 1 | Granger, menor p BH |
+|---|---|---|---|
+| Soja US$/t, série completa | −0,262 (0,007) | k = 4: r = +0,188, p = 0,008 (BH 0,13) | 0,57 |
+| Soja US$/t, sem quebras | −0,281 (0,005) | k = 4: r = +0,198, p = 0,006 (BH 0,11) | 0,57 |
+| Milho US$/t | −0,212 (0,064) | k = 9: r = +0,157, p = 0,030 (BH 0,37) | 0,69 |
+
+Como ler:
+- **Não há evidência de que o dólar antecipe soja ou milho em US$/t.** Nenhuma defasagem de 1 a
+  12 meses e nenhum teste de Granger fica significativo depois do ajuste BH.
+- A soja na defasagem 4 e o milho na 9 teriam p < 0,05 isolados — é o tipo de achado que surge
+  por acaso quando se testa muita coisa, e por isso não é tratado como resultado.
+- Só a relação **no mesmo mês** (k = 0, já vista na correlação) sobrevive para a soja. Ela é
+  **simultânea, não preditiva**: o dólar de um mês não ajuda a prever o preço do mês seguinte.
+- Para o milho, a relação no mesmo mês é **inconclusiva** (p ajustado = 0,064, acima de 5%).
+- Tirar as quebras de jan/2021 e jan/2025 quase não muda a soja: a conclusão não depende delas.
+- Consequência para a previsão: o dólar defasado não entra como variável explicativa por padrão.
 
 ## Metodologia da previsão (em implementação)
 
@@ -177,7 +221,8 @@ Etapas concluídas:
 - 0 — estrutura do projeto; 1 — coleta e limpeza do dólar (BCB SGS 1);
 - 2 — Parquet em `data/processed/` com atualização incremental e cache;
 - 3 — leitor do Pink Sheet (`wb_soja`, `wb_milho`), recusando edições mais antigas;
-- 4 — análise mensal dólar × soja/milho em US$ e R$ (correlação de retornos log).
+- 4 — análise mensal dólar × soja/milho em US$ e R$ (correlação de retornos log);
+- 5 — defasagem: ADF, correlação cruzada e Granger com BH; sem evidência de que o dólar antecipe os preços.
 
 Decisões tomadas:
 - Dashboard público só com BCB + Banco Mundial; CEPEA apenas local, fora do git.
@@ -190,7 +235,6 @@ Pendências externas:
 
 ## Próximos passos
 
-1. Análise de defasagem: testar se o dólar antecipa soja e milho.
-2. Previsão ARIMA/ETS com backtest contra o ingênuo (MASE + DM-HLN).
-3. Dashboard Streamlit + Plotly com fontes, licenças e aviso de não recomendação.
-4. Publicar no Streamlit Community Cloud.
+1. Previsão ARIMA/ETS com backtest contra o ingênuo (MASE + DM-HLN).
+2. Dashboard Streamlit + Plotly com fontes, licenças e aviso de não recomendação.
+3. Publicar no Streamlit Community Cloud.
