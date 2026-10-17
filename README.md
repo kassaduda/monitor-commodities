@@ -1,9 +1,25 @@
 # Monitor de Commodities
 
-Cruza a cotação do dólar com os preços de soja e milho, analisa a relação entre eles
-(incluindo defasagem) e mostra uma previsão mensal ilustrativa em um dashboard Streamlit.
+**Em 3 linhas**
+1. Acompanha o dólar e os preços internacionais de soja, milho e trigo, só com dados públicos do Banco Central e do Banco Mundial.
+2. Pergunta central: o dólar de hoje ajuda a prever o preço dessas commodities nos meses seguintes? Em 201 meses de dados, não: os testes estatísticos não acharam essa relação e nenhum modelo de previsão (ARIMA, ARIMAX, ETS) errou menos do que simplesmente repetir o último preço.
+3. Mostra também risco, a razão soja/milho e um simulador do preço da soja "na porteira" (dólar, prêmio de porto e frete que você escolhe). A previsão é ilustrativa.
 
 > **Não é recomendação de investimento.** A previsão é ilustrativa.
+
+![Dashboard do Monitor de Commodities](docs/dashboard.jpg)
+
+**App publicado:** _link a preencher depois do deploy no Streamlit Community Cloud (ainda não publicado; passos em "Deploy")._
+Para ver agora, rode localmente (seção "Dashboard").
+
+**O que o dashboard traz**
+- **Trigo** (`Wheat, US HRW`, Banco Mundial) ao lado de soja e milho em preços, conversões para R$ e R$/sc, correlação, risco e
+  bandas de Bollinger. A defasagem (Granger) e o backtest seguem só com soja e milho (seção "Trigo").
+- **ARIMAX** (dólar defasado em 1 mês como variável explicativa) no backtest, comparado ao ingênuo: **não ganha**. Em 27 testes
+  (3 modelos × 3 horizontes × 3 casos), nenhum modelo erra significativamente menos que repetir o último valor, e o ARIMAX na soja desde 2021
+  com horizonte de 1 mês erra cerca de 40% mais (rMAE 1,40; p ajustado 0,034). Detalhes em "Previsão e backtest".
+- **Simulador de soja na porteira** (painel lateral): R$/t = (soja US$/t + prêmio de porto) × dólar − frete interno, e R$/sc de 60 kg.
+  Prêmio e frete são premissas suas, não dados de mercado (seção "Razão soja/milho e simulador de câmbio").
 
 ## Fontes de dados
 
@@ -399,19 +415,20 @@ Etapas concluídas:
 - 5 — defasagem: ADF, correlação cruzada e Granger com BH; sem evidência de que o dólar antecipe os preços;
 - 6 — previsão ARIMA/ETS com backtest (janela de 60 meses, h = 1, 3, 6; rMAE vs ingênuo + DM-HLN):
   **sem evidência de que algum modelo ganhe do ingênuo**, nem na soja só desde 2021;
-- 11 — ARIMAX (dólar defasado em 1 mês como exógena) no backtest: **também não ganha do ingênuo**; na soja desde 2021 com h = 1 perde
-  significativamente (rMAE 1,40; BH 0,034);
-- 7 — dashboard Streamlit + Plotly em `app/`, lendo `data/processed/resultados_*` (gerados por `python -m monitor.resultados`).
-- 8 — visual "cockpit agro" (fundo com overlay, layout 70/30, KPIs com sparklines) e análises de risco: correlação
-  deslizante, volatilidade móvel e bandas de Bollinger, calculadas no pipeline;
+- 7 — dashboard Streamlit + Plotly em `app/`, lendo `data/processed/resultados_*` (gerados por `python -m monitor.resultados`);
+- 8 — visual "cockpit agro" (fundo com overlay, KPIs com sparklines) e análises de risco: correlação deslizante,
+  volatilidade móvel e bandas de Bollinger, calculadas no pipeline;
 - 9 — razão soja/milho (calculada no pipeline) e simulador de stress cambial no painel lateral;
-- 10 — layout top-down; trigo (`Wheat, US HRW`) no pipeline e no dashboard; simulador "na porteira" (prêmio e frete);
-  teste automático no GitHub Actions.
+- 10 — layout top-down (KPIs lado a lado, gráficos em largura total); trigo (`Wheat, US HRW`) no pipeline e no dashboard;
+  simulador "na porteira" (prêmio e frete); teste automático no GitHub Actions;
+- 11 — ARIMAX (dólar defasado em 1 mês como exógena) no backtest: **também não ganha do ingênuo**; na soja desde 2021 com h = 1
+  perde significativamente (rMAE 1,40; BH 0,034).
 
 Decisões tomadas:
 - Dashboard público só com BCB + Banco Mundial; CEPEA apenas local, fora do git.
 - Previsão mensal (frequência do Pink Sheet), comparada ao modelo ingênuo com DM-HLN.
-- Previsão exibida: ingênua com intervalo de 95%, em US$/t (os modelos não a superaram).
+- Previsão exibida: ingênua com intervalo de 95%, em US$/t (ARIMA, ARIMAX e ETS não a superaram).
+- Trigo = `Wheat, US HRW` (o Pink Sheet não tem coluna `Wheat`); fica fora da defasagem e do backtest para não mudar os p-valores ajustados.
 - Robustez da soja desde jan/2021 com janela de 36 meses (com 60 sobrariam 9 origens).
 - Quebras da soja (jan/2021, jan/2025) tratadas como quebras estruturais.
 
@@ -425,7 +442,8 @@ Pendências externas:
 
 ## Próximos passos
 
-1. Publicar no Streamlit Community Cloud (passos em "Deploy"; `requirements.txt` pronto) e colocar o link no README.
+1. Criar o repositório no GitHub e publicar no Streamlit Community Cloud (passos em "Deploy"; `requirements.txt` pronto); colocar o link
+   do app no topo deste README (hoje está como "a preencher").
    Rodar `python -m monitor.resultados` após cada nova edição do Pink Sheet e commitar os `resultados_*`.
 2. (Opcional) Intervalos mais largos ou empíricos, já que a cobertura de 95% ficou em 87–94%.
 3. Acompanhar a resposta da CONAB (prazo 09/11/2026) e do CEPEA. Só codar o leitor da CONAB
