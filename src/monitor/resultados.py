@@ -15,6 +15,7 @@ import pandas as pd
 from monitor import config
 from monitor.analise.base import COMMODITIES, BaseMensal, correlacoes_de_retornos, montar_base
 from monitor.analise.defasagem import analisar
+from monitor.analise.razao import razao_soja_milho
 from monitor.analise.risco import bandas_bollinger, correlacao_deslizante, volatilidade_movel
 from monitor.analise.variacao import retorno_log
 from monitor.previsao.execucao import avaliar_casos, casos, previsoes_ilustrativas
@@ -71,6 +72,7 @@ def gerar(dir_processed: Path = config.DIR_PROCESSED, paralelo: bool = True) -> 
         "defasagem": defasagem,
         "adf": adf,
         **tabelas_de_risco(base),
+        "razao": razao_soja_milho(base.precos["wb_soja"]["US$/t"], base.precos["wb_milho"]["US$/t"]),
     }
     tabelas = {k: v.assign(fonte=FONTES_PERMITIDAS) for k, v in tabelas.items()}
     validar_fontes(tabelas)

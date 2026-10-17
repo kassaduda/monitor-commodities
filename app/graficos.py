@@ -43,12 +43,17 @@ def linha(df: pd.DataFrame, titulo: str, unidade: str, cor: str, nome: str) -> g
     return _tema(fig, titulo, unidade, showlegend=False)
 
 
-def marcar_quebras(fig: go.Figure, quebras: list[tuple[pd.Timestamp, str]]) -> go.Figure:
+def marcar_quebras(fig: go.Figure, quebras: list[tuple[pd.Timestamp, str]], vertical: bool = False) -> go.Figure:
+    """Linhas tracejadas nas datas de quebra. `vertical`: texto rente à linha (para gráficos estreitos)."""
     for i, (data, descricao) in enumerate(quebras):
         x = data.strftime("%Y-%m-%d")
         fig.add_shape(type="line", x0=x, x1=x, y0=0, y1=1, yref="paper", line=dict(color=COR_NEUTRA, dash="dash", width=1.2))
-        fig.add_annotation(x=x, y=1 - 0.08 * i, yref="paper", text=f"{data:%b/%Y}: {descricao}", showarrow=False,
-                           xanchor="left", font=dict(size=12, color=COR_TEXTO))
+        if vertical:
+            fig.add_annotation(x=x, y=0.02, yref="paper", text=f"{data:%b/%Y}: {descricao}", showarrow=False, textangle=-90,
+                               xanchor="right", yanchor="bottom", font=dict(size=11, color=COR_TEXTO))
+        else:
+            fig.add_annotation(x=x, y=1 - 0.08 * i, yref="paper", text=f"{data:%b/%Y}: {descricao}", showarrow=False,
+                               xanchor="left", font=dict(size=12, color=COR_TEXTO))
     return fig
 
 
@@ -132,3 +137,17 @@ def bollinger(bb: pd.DataFrame, titulo: str, unidade: str, cor: str) -> go.Figur
                                  marker=dict(size=11, symbol="diamond", color=cor_choque, line=dict(color="#0D1B15", width=1.5)),
                                  hovertemplate="%{y:,.2f} " + unidade + "<br>banda: %{customdata[0]:,.1f} a %{customdata[1]:,.1f}<extra></extra>"))
     return _tema(fig, titulo, unidade)
+
+
+COR_RAZAO = "#FFEA00"  # amarelo neon
+
+
+def razao(df: pd.DataFrame, referencia: float, titulo: str) -> go.Figure:
+    """Razão soja/milho no tempo, com a linha horizontal de referência."""
+    fig = go.Figure(go.Scatter(x=df["data"], y=df["valor"], mode="lines", name="Soja ÷ milho",
+                               line=dict(color=COR_RAZAO, width=LARGURA_LINHA, shape="spline", smoothing=0.6),
+                               hovertemplate="%{y:.2f}"))
+    fig.add_hline(y=referencia, line=dict(color=COR_TEXTO, width=1.2, dash="dash"),
+                  annotation_text=f"referência {referencia:.1f}".replace(".", ","), annotation_position="top left",
+                  annotation_font=dict(color=COR_TEXTO, size=12))
+    return _tema(fig, titulo, "preço da soja ÷ preço do milho (adimensional)", showlegend=False)

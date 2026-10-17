@@ -20,8 +20,8 @@ def markdown(texto: str) -> None:
     st.markdown(escapar(texto))
 
 
-def caption(texto: str) -> None:
-    st.caption(escapar(texto))
+def caption(texto: str, destino=st) -> None:
+    destino.caption(escapar(texto))
 
 
 def subheader(texto: str) -> None:
@@ -32,8 +32,8 @@ def title(texto: str) -> None:
     st.title(escapar(texto))
 
 
-def info(texto: str, **kw) -> None:
-    st.info(escapar(texto), **kw)
+def info(texto: str, destino=st, **kw) -> None:
+    destino.info(escapar(texto), **kw)
 
 
 def warning(texto: str, **kw) -> None:
@@ -68,6 +68,10 @@ def radio(rotulo: str, opcoes: list[str], **kw) -> str:
 
 def selectbox(rotulo: str, opcoes: list[str], **kw) -> str:
     return st.selectbox(escapar(rotulo), opcoes, format_func=escapar, **kw)
+
+
+def slider(rotulo: str, minimo: float, maximo: float, valor: float, passo: float, destino=st) -> float:
+    return destino.slider(escapar(rotulo), minimo, maximo, valor, passo)
 
 
 def expander(rotulo: str):

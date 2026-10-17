@@ -8,6 +8,9 @@ DIR_DADOS: Path = RAIZ / "data"
 DIR_RAW: Path = DIR_DADOS / "raw"
 DIR_PROCESSED: Path = DIR_DADOS / "processed"
 
+# Imagem de fundo do dashboard (opcional: sem o arquivo, o app usa só a cor do tema).
+ARQUIVO_FUNDO: Path = RAIZ / "assets" / "background_agro.jpg"
+
 DATA_INICIO: date = date(2010, 1, 1)
 
 # BCB SGS 1. Desde 01/07/2011 é a PTAX de fechamento (venda); conferido contra a API PTAX/Olinda.
@@ -50,12 +53,16 @@ ARQUIVOS_RESULTADOS: dict[str, str] = {
     "correlacao_deslizante": "resultados_correlacao_deslizante.parquet",
     "volatilidade": "resultados_volatilidade.parquet",
     "bollinger": "resultados_bollinger.parquet",
+    "razao": "resultados_razao_soja_milho.parquet",
 }
 # Janelas (meses) das métricas de risco: correlação deslizante, volatilidade móvel e Bollinger (média ± k desvios).
 JANELA_CORRELACAO: int = 36
 JANELA_VOLATILIDADE: int = 12
 JANELA_BOLLINGER: int = 12
 K_BOLLINGER: float = 2.0
+
+# Regra prática de mercado para a razão de preços soja/milho (referência visual, não calculada com estes dados).
+REFERENCIA_RAZAO_SOJA_MILHO: float = 2.5
 
 ARQUIVO_RESULTADOS_META: str = "resultados_meta.json"
 

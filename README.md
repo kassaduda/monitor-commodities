@@ -257,11 +257,28 @@ streamlit run app/streamlit_app.py
 O app só **lê** arquivos (`ptax_venda`, `wb_soja`, `wb_milho` e `resultados_*.parquet`/`resultados_meta.json`);
 não recalcula modelos nem baixa dados. Os `resultados_*` derivam só de BCB e Banco Mundial (a coluna `fonte`
 registra isso e `monitor.resultados.validar_fontes` recusa qualquer menção a CEPEA/CONAB), por isso entram no git.
-Topo: aviso de previsão ilustrativa, conclusão e três cartões (último dólar e última soja com mini-gráfico de 24 meses;
-veredito do backtest). Abas: Dólar (diário) · Soja e milho (US$/t, R$/t, R$/sc 60 kg, com as quebras de definição) ·
+Topo: aviso de previsão ilustrativa, conclusão e, em duas colunas (70/30), o gráfico principal (soja com bandas de
+Bollinger) e três cartões empilhados (último dólar e última soja com mini-gráfico de 12 meses; veredito do backtest). Abas: Dólar (diário) · Soja e milho (US$/t, R$/t, R$/sc 60 kg, com as quebras de definição) ·
 Dólar × commodities (correlação e defasagem, exploratório) · Backtest e previsão (rMAE e veredito; previsão ingênua com
 IC 95%). O rodapé global traz os créditos do BCB e do Banco Mundial (CC BY 4.0). O dashboard público não menciona CEPEA
 nem CONAB (um teste confere); o motivo de não publicá-los está neste README.
+
+**Imagem de fundo:** `assets/background_agro.jpg` entra no CSS em base64, com um overlay escuro por cima. A imagem do
+repositório é uma ilustração abstrata gerada para o projeto (sem material de terceiros). Para usar outra foto, troque o
+arquivo (mantenha abaixo de ~300 KB, pois vai inline a cada carga da página) e confirme que a licença permite o uso; sem o
+arquivo, o app usa só a cor do tema.
+
+### Razão soja/milho e simulador de câmbio
+
+- **Razão soja/milho** (aba "Razão soja/milho", `monitor.analise.razao`, tabela `resultados_razao_soja_milho`): preço da soja ÷
+  preço do milho, ambos em US$/t, mensal. A linha em 2,5 é uma **regra prática de mercado** (razões acima dela costumam
+  favorecer a soja), mostrada como referência visual, não estimada com estes dados. Até dez/2024 a soja do Pink Sheet é CIF
+  Rotterdam e o milho é FOB Golfo, então a razão desse período fica inflada pelo frete; as mudanças de definição da soja
+  (jan/2021, jan/2025) aparecem marcadas.
+- **Simulador de Stress Cambial** (painel lateral): para um dólar entre R$ 4,00 e R$ 7,00, mostra a soja mais recente do Pink
+  Sheet em R$/sc 60 kg e R$/t (`monitor.analise.conversao.reais_por_saca`: US$/t × dólar × 60/1000). É a única conta feita no
+  app, porque depende do slider. Cálculo mecânico isolado (ceteris paribus): não prevê a reação real do mercado. O ponto de
+  partida é a PTAX média do mês da soja.
 
 ### Risco no tempo (aba "Dólar × commodities" e gráficos de preço)
 
@@ -344,7 +361,9 @@ Etapas concluídas:
 - 6 — previsão ARIMA/ETS com backtest (janela de 60 meses, h = 1, 3, 6; rMAE vs ingênuo + DM-HLN):
   **sem evidência de que algum modelo ganhe do ingênuo**, nem na soja só desde 2021;
 - 7 — dashboard Streamlit + Plotly em `app/`, lendo `data/processed/resultados_*` (gerados por `python -m monitor.resultados`).
-- 8 — visual "cockpit agro" e análises de risco: correlação deslizante, volatilidade móvel e bandas de Bollinger.
+- 8 — visual "cockpit agro" (fundo com overlay, layout 70/30, KPIs com sparklines) e análises de risco: correlação
+  deslizante, volatilidade móvel e bandas de Bollinger, calculadas no pipeline;
+- 9 — razão soja/milho (aba nova, calculada no pipeline) e simulador de stress cambial no painel lateral.
 
 Decisões tomadas:
 - Dashboard público só com BCB + Banco Mundial; CEPEA apenas local, fora do git.

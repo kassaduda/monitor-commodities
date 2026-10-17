@@ -40,6 +40,11 @@ def tonelada_para_saca(df: pd.DataFrame) -> pd.DataFrame:
     return out[COLUNAS_PADRAO]
 
 
+def reais_por_saca(usd_por_tonelada: float, cambio: float) -> float:
+    """R$ por saca de 60 kg = US$/t × (R$/US$) × 60/1000. Cálculo mecânico, sem prever reação de mercado."""
+    return usd_por_tonelada * cambio * KG_POR_SACA / KG_POR_TONELADA
+
+
 def _unidade_unica(df: pd.DataFrame) -> str:
     unidades = df["unidade"].unique()
     if len(unidades) != 1:

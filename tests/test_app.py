@@ -69,12 +69,56 @@ def test_sem_cepea_conab_e_com_creditos_no_rodape():
 
     at = AppTest.from_file(str(APP / "streamlit_app.py"), default_timeout=120).run()
     assert not at.exception
-    tela = " ".join(_textos(at)).lower()
+    tela = " ".join(x for x in _textos(at) if not x.lstrip().startswith("<style>")).lower()  # o CSS leva a foto em base64
     codigo = " ".join(p.read_text(encoding="utf-8") for p in APP.glob("*.py")).lower()
     for proibida in ("cepea", "conab", "esalq"):
         assert proibida not in tela and proibida not in codigo, proibida
-    assert [t.label for t in at.tabs] == ["Dólar", "Soja e milho", "Dólar × commodities", "Backtest e previsão"]
+    assert [t.label for t in at.tabs] == ["Dólar", "Soja e milho", "Dólar × commodities", "Razão soja/milho", "Backtest e previsão"]
     rodape = [str(m.value) for m in at.markdown if 'class="rodape-fontes"' in str(m.value)]
     assert len(rodape) == 1
     for credito in ("Banco Central do Brasil", "Banco Mundial", "CC BY 4.0"):
         assert credito in rodape[0]
+
+
+def test_css_fundo_com_imagem_local_e_overlay(tmp_path):
+    import base64
+
+    import estilo
+
+    assert estilo.css_fundo(tmp_path / "nao_existe.jpg") == ""  # sem imagem, o app segue só com a cor do tema
+    img = tmp_path / "fundo.jpg"
+    img.write_bytes(b"\xff\xd8\xff\xe0fake")
+    css = estilo.css_fundo(img)
+    assert base64.b64encode(img.read_bytes()).decode() in css
+    assert "data:image/jpeg;base64," in css and "cover" in css
+    assert "rgba(10, 22, 18, 0.85)" in css and "rgba(10, 22, 18, 0.95)" in css
+    assert not SEM_ESCAPE.search(css)
+
+
+def test_imagem_de_fundo_do_repositorio_e_leve():
+    assert config.ARQUIVO_FUNDO.exists()
+    assert config.ARQUIVO_FUNDO.stat().st_size < 300_000  # vai inline no CSS a cada carga da página
+
+
+def test_simulador_de_stress_mostra_conversao_e_aviso():
+    if not all((config.DIR_PROCESSED / a).exists() for a in [*ARQUIVOS.values(), ARQUIVO_META]):
+        pytest.skip("resultados ainda não gerados (python -m monitor.resultados)")
+    from streamlit.testing.v1 import AppTest
+
+    at = AppTest.from_file(str(APP / "streamlit_app.py"), default_timeout=120).run()
+    def slider_do_dolar(a):
+        return next(s for s in a.slider if "Dólar simulado" in s.label)
+
+    def sacas(a) -> float:
+        valor = next(m.value for m in a.metric if "sc 60 kg" in m.label)  # o `$` vem escapado na tela
+        return float(valor.replace("\\", "").replace("R$", "").replace("/sc", "").replace(".", "").replace(",", ".").strip())
+
+    assert (slider_do_dolar(at).min, slider_do_dolar(at).max) == (4.0, 7.0)
+    avisos = [str(i.value) for i in at.info] + [str(c.value) for c in at.caption]
+    assert any("Ceteris Paribus" in a and "Não prevê a reação real do mercado" in a for a in avisos)
+
+    base = sacas(at)
+    em_7 = sacas(slider_do_dolar(at).set_value(7.0).run())
+    em_4 = sacas(slider_do_dolar(at).set_value(4.0).run())
+    assert em_4 < base < em_7  # dólar mais caro, soja mais cara em R$/sc
+    assert em_7 / em_4 == pytest.approx(7.0 / 4.0, rel=1e-3)  # conversão proporcional ao câmbio

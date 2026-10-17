@@ -4,14 +4,38 @@ Só CSS e `pandas.Styler` (sem scipy/statsmodels). O layout é `wide` e o Stream
 nenhum CSS aqui fixa largura de página (sem `max-width`, `100vw` ou margens negativas).
 """
 
+import base64
+from pathlib import Path
+
 import pandas as pd
 import streamlit as st
+
+from monitor import config
 
 LIMAO, VERDE_SUAVE, VERMELHO, AMARELO = "#00FF7F", "#8FB5A0", "#FF6B81", "#FFC21A"
 TEXTO_SECUNDARIO = "#B7CCBF"
 FUNDO_CARTAO = "#12261C"
-FUNDO_KPI = "#0B1410"
+FUNDO_KPI = "rgba(11, 20, 16, 0.72)"  # #0B1410 translúcido, para a foto aparecer por trás
 CINZA_RODAPE = "#7C8F84"
+
+# Película escura sobre a foto: a imagem dá clima, mas não disputa com os números.
+OVERLAY = "linear-gradient(rgba(10, 22, 18, 0.85), rgba(10, 22, 18, 0.95))"
+
+
+@st.cache_data
+def imagem_base64(caminho: str) -> str:
+    """Conteúdo do arquivo em base64 ("" se o arquivo não existir)."""
+    arquivo = Path(caminho)
+    return base64.b64encode(arquivo.read_bytes()).decode("ascii") if arquivo.exists() else ""
+
+
+def css_fundo(caminho: Path = config.ARQUIVO_FUNDO) -> str:
+    """CSS do fundo da página: imagem local (data URI) com `cover` e o overlay escuro por cima."""
+    b64 = imagem_base64(str(caminho))
+    if not b64:
+        return ""
+    return (f'.stApp {{ background: {OVERLAY}, url("data:image/jpeg;base64,{b64}") center / cover no-repeat fixed; }}')
+
 
 CSS = f"""
 <style>
@@ -30,11 +54,12 @@ h2, h3, h4 {{ letter-spacing: -0.005em; }}
 /* Cartões de KPI: fundo bem escuro e brilho neon discreto */
 [data-testid="stMetric"], .st-key-kpi_dolar, .st-key-kpi_soja, .st-key-kpi_veredito {{
   background: {FUNDO_KPI}; border: 1px solid rgba(0, 255, 127, 0.3); border-radius: 10px;
+  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
   box-shadow: 0 4px 15px rgba(0, 255, 127, 0.15);
 }}
 [data-testid="stMetric"] {{ padding: 16px 18px; }}
 /* nos cartões do topo, o st.metric fica dentro do cartão (que leva o brilho): sem moldura própria */
-.st-key-kpi_dolar, .st-key-kpi_soja, .st-key-kpi_veredito {{ padding: 6px 10px 10px; min-height: 16rem; }}
+.st-key-kpi_dolar, .st-key-kpi_soja, .st-key-kpi_veredito {{ padding: 6px 10px 10px; margin-bottom: 0.9rem; }}
 .st-key-kpi_dolar [data-testid="stMetric"], .st-key-kpi_soja [data-testid="stMetric"],
 .st-key-kpi_veredito [data-testid="stMetric"] {{ background: transparent; border: 0; box-shadow: none; }}
 .st-key-kpi_dolar [data-testid="stCaptionContainer"], .st-key-kpi_soja [data-testid="stCaptionContainer"] {{ padding: 0 18px; }}
@@ -69,7 +94,7 @@ button[data-baseweb="tab"][aria-selected="true"] p {{ color: {LIMAO}; }}
 
 
 def inject_custom_css() -> None:
-    st.markdown(CSS, unsafe_allow_html=True)
+    st.markdown(CSS + f"<style>{css_fundo()}</style>", unsafe_allow_html=True)
 
 
 def selo_aviso(texto: str) -> None:
