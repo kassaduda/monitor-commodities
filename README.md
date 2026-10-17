@@ -9,8 +9,8 @@
 
 ![Dashboard do Monitor de Commodities](docs/dashboard.jpg)
 
-**App publicado:** _link a preencher depois do deploy no Streamlit Community Cloud (ainda não publicado; passos em "Deploy")._
-Para ver agora, rode localmente (seção "Dashboard").
+**App publicado:** <https://monitor-commodities.streamlit.app>
+Para rodar localmente, veja a seção "Dashboard".
 
 **O que o dashboard traz**
 - **Trigo** (`Wheat, US HRW`, Banco Mundial) ao lado de soja e milho em preços, conversões para R$ e R$/sc, correlação, risco e
@@ -442,8 +442,8 @@ Pendências externas:
 
 ## Próximos passos
 
-1. Criar o repositório no GitHub e publicar no Streamlit Community Cloud (passos em "Deploy"; `requirements.txt` pronto); colocar o link
-   do app no topo deste README (hoje está como "a preencher").
+1. Manter o app publicado em <https://monitor-commodities.streamlit.app> (passos em "Deploy"). A cada nova edição do Pink Sheet:
+   rodar `python -m monitor.resultados`, commitar os `resultados_*` e dar `git push`; o Streamlit Cloud atualiza sozinho.
    Rodar `python -m monitor.resultados` após cada nova edição do Pink Sheet e commitar os `resultados_*`.
 2. (Opcional) Intervalos mais largos ou empíricos, já que a cobertura de 95% ficou em 87–94%.
 3. Acompanhar a resposta da CONAB (prazo 09/11/2026) e do CEPEA. Só codar o leitor da CONAB
