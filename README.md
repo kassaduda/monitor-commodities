@@ -153,7 +153,7 @@ Como ler:
   **simultânea, não preditiva**: o dólar de um mês não ajuda a prever o preço do mês seguinte.
 - Para o milho, a relação no mesmo mês é **inconclusiva** (p ajustado = 0,064, acima de 5%).
 - Tirar as quebras de jan/2021 e jan/2025 quase não muda a soja: a conclusão não depende delas.
-- Consequência para a previsão: o dólar defasado não entra como variável explicativa por padrão.
+- Consequência para a previsão: o dólar defasado não entra como variável explicativa por padrão; o ARIMAX o testa à parte.
 
 ## Previsão e backtest
 
@@ -161,7 +161,7 @@ Como ler:
 python -m monitor.previsao
 ```
 
-Leva cerca de 3 minutos (um ajuste por origem, modelo e ordem candidata).
+Leva cerca de 6 minutos (um ajuste por origem, modelo e ordem candidata; o ARIMAX é o mais lento).
 
 **Modelos** (univariados, sobre o log do preço em US$/t; a previsão volta ao nível com exp, o
 que dá a mediana prevista):
@@ -171,7 +171,12 @@ que dá a mediana prevista):
   por AICc. ARIMA(0,1,0) é o próprio ingênuo e está entre as opções.
 - **ETS** de erro aditivo, sem sazonalidade: nível simples (A,N,N) ou tendência amortecida
   (A,Ad,N), escolhido por AICc dentro de cada janela.
-- O dólar defasado não entra nos modelos: a análise de defasagem não achou poder preditivo.
+- **ARIMAX(p,1,q)** (como o ARIMA, com o dólar como exógena): o log do dólar (média mensal da PTAX, R$/US$) **defasado em 1
+  mês**, de modo que o retorno do preço do mês t seja explicado pelo retorno do dólar de t−1. Para o horizonte h não há previsão
+  do dólar: o 1º mês à frente usa o dólar da própria origem (já conhecido) e os demais repetem esse valor (dólar ingênuo). Nada
+  posterior à origem entra (um teste muda o dólar a partir de um mês e confere que as previsões anteriores não mudam). Quando
+  falta o dólar defasado em algum mês da janela (a série do dólar começa em jan/2010), o ARIMAX pula aquela origem: a 1ª origem
+  de cada caso fica sem ARIMAX e a rMAE usa só as origens em comum com o ingênuo.
 
 **Backtest:**
 - Janela deslizante de **60 meses**. Em cada origem, o modelo vê só os 60 meses que terminam
@@ -196,7 +201,7 @@ que dá a mediana prevista):
     Student com T−1 graus de liberdade. Isso corrige a tendência do DM original de rejeitar
     demais em amostras pequenas. Um teste com 600 simulações MA(5) mostra que a taxa de
     rejeição a 5% fica perto da nominal;
-  - os p-valores dos 18 testes (2 modelos × 3 horizontes × 3 casos) são ajustados por
+  - os p-valores dos 27 testes (3 modelos × 3 horizontes × 3 casos) são ajustados por
     Benjamini-Hochberg.
 - **Veredito:** "ganha" ou "perde" do ingênuo só se o DM for significativo depois do BH;
   fora isso, "sem diferença significativa". Os ICs da rMAE são individuais, sem ajuste para
@@ -211,16 +216,27 @@ Resultado (edição do Pink Sheet de 02/10/2026; rMAE vs ingênuo com IC 95%, p 
 
 | Caso | Modelo | h = 1 | h = 3 | h = 6 |
 |---|---|---|---|---|
-| Soja, 2010–2026 (T = 141/139/136) | ARIMA | 1,04 [0,99; 1,09] p 0,21 (BH 0,51) | 1,04 [0,98; 1,11] p 0,25 (BH 0,51) | 1,04 [0,98; 1,10] p 0,29 (BH 0,51) |
-| | ETS | 1,06 [1,02; 1,11] p 0,10 (BH 0,42) | 1,09 [1,02; 1,17] p 0,06 (BH 0,37) | 1,08 [0,96; 1,25] p 0,38 (BH 0,56) |
-| Soja, desde 2021 (T = 33/31/28) | ARIMA | 1,22 [1,08; 1,38] p 0,007 (BH 0,12) | 1,20 [1,08; 1,36] p 0,03 (BH 0,23) | 1,02 [0,86; 1,23] p 0,79 (BH 0,80) |
-| | ETS | 1,02 [0,91; 1,18] p 0,70 (BH 0,80) | 1,02 [0,90; 1,21] p 0,80 (BH 0,80) | 1,09 [1,01; 1,34] p 0,12 (BH 0,42) |
-| Milho, 2010–2026 (T = 141/139/136) | ARIMA | 0,98 [0,90; 1,07] p 0,61 (BH 0,79) | 1,01 [0,95; 1,08] p 0,71 (BH 0,80) | 1,02 [0,95; 1,07] p 0,62 (BH 0,79) |
-| | ETS | 1,01 [1,00; 1,04] p 0,27 (BH 0,51) | 1,02 [1,00; 1,05] p 0,31 (BH 0,51) | 1,02 [1,00; 1,07] p 0,27 (BH 0,51) |
+| Soja, 2010–2026 (T = 141/139/136) | ARIMA | 1,04 [0,99; 1,09] p 0,21 (BH 0,51) | 1,04 [0,98; 1,11] p 0,25 (BH 0,52) | 1,03 [0,98; 1,10] p 0,29 (BH 0,52) |
+|  | ARIMAX | 1,04 [0,99; 1,10] p 0,20 (BH 0,51) | 1,05 [0,98; 1,12] p 0,17 (BH 0,50) | 1,04 [0,97; 1,11] p 0,32 (BH 0,52) |
+|  | ETS | 1,06 [1,02; 1,11] p 0,10 (BH 0,44) | 1,09 [1,02; 1,17] p 0,06 (BH 0,33) | 1,08 [0,96; 1,25] p 0,38 (BH 0,56) |
+| Soja, desde 2021 (T = 33/31/28) | ARIMA | 1,22 [1,08; 1,38] p 0,007 (BH 0,09) | 1,20 [1,08; 1,36] p 0,03 (BH 0,17) | 1,02 [0,86; 1,23] p 0,79 (BH 0,80) |
+|  | ARIMAX | 1,40 [1,16; 1,78] p 0,001 (BH 0,03) | 1,23 [1,07; 1,46] p 0,01 (BH 0,13) | 1,15 [0,99; 1,53] p 0,16 (BH 0,50) |
+|  | ETS | 1,02 [0,91; 1,18] p 0,70 (BH 0,77) | 1,02 [0,90; 1,21] p 0,80 (BH 0,80) | 1,09 [1,00; 1,34] p 0,12 (BH 0,45) |
+| Milho, 2010–2026 (T = 141/139/136) | ARIMA | 0,98 [0,90; 1,07] p 0,61 (BH 0,72) | 1,01 [0,95; 1,08] p 0,71 (BH 0,77) | 1,01 [0,95; 1,07] p 0,61 (BH 0,72) |
+|  | ARIMAX | 1,04 [0,94; 1,15] p 0,47 (BH 0,67) | 1,02 [0,97; 1,07] p 0,50 (BH 0,67) | 1,01 [0,96; 1,06] p 0,55 (BH 0,71) |
+|  | ETS | 1,01 [1,00; 1,04] p 0,27 (BH 0,52) | 1,02 [1,00; 1,05] p 0,31 (BH 0,52) | 1,02 [1,00; 1,07] p 0,27 (BH 0,52) |
 
-**Os modelos não ganham do ingênuo.** Em nenhum dos 18 casos o ARIMA ou o ETS erra
+**Os modelos não ganham do ingênuo.** Em nenhum dos 27 casos o ARIMA, o ARIMAX ou o ETS erra
 significativamente menos que repetir o último valor. Na maioria, a rMAE fica um pouco acima
 de 1. A única rMAE abaixo de 1 (ARIMA no milho com h = 1, 0,98) tem IC que inclui 1 e p = 0,61.
+- **O dólar defasado não ajuda a prever (ARIMAX).** Na série completa, o ARIMAX fica em 1,04–1,05 na soja e 1,01–1,04 no milho,
+  sem diferença significativa; a ordem mais escolhida é (0,1,0) na soja (cerca de 51% das origens) e (0,1,1) no milho (cerca de 54%). Isso
+  confirma, agora em previsão fora da amostra, o resultado da defasagem (Granger sem significância).
+- **Um caso significativo, contra o modelo:** na soja desde 2021 com h = 1, o ARIMAX erra cerca de 40% mais que o ingênuo
+  (rMAE 1,40; p bruto 0,001; BH 0,034). É o único dos 27 testes que passa pelo ajuste, e a favor do ingênuo. É uma checagem de
+  sensibilidade (33 origens, janela de 36 meses, inclui a quebra de definição da soja), então não se deve generalizar.
+- Adicionar o ARIMAX aumentou de 18 para 27 os testes e, com isso, mudou os p-valores ajustados (BH) dos outros modelos (os p brutos
+  não mudam). O ARIMA da soja desde 2021 com h = 1, por exemplo, passou de BH 0,12 para 0,088, ainda sem significância.
 - Alguns ICs da rMAE ficam inteiros acima de 1 (por exemplo, o ETS na soja). Nesses casos o
   modelo provavelmente erra **mais** que o ingênuo, mas o DM-HLN com BH não confirma.
 - Na soja desde 2021, o ARIMA erra cerca de 20% a mais que o ingênuo em 1 e 3 meses
@@ -233,7 +249,7 @@ de 1. A única rMAE abaixo de 1 (ARIMA no milho com h = 1, 0,98) tem IC que incl
   abaixo do nominal. Os intervalos subestimam a incerteza (choques de preço maiores que os da
   janela de treino).
 
-**Previsão ilustrativa** (últimos 60 meses até set/2026, intervalo de 95%, US$/t): os três
+**Previsão ilustrativa** (últimos 60 meses até set/2026, intervalo de 95%, US$/t): os modelos
 modelos ficam praticamente iguais ao último valor.
 
 | | Último (set/2026) | out/2026 | dez/2026 | mar/2027 |
@@ -383,6 +399,8 @@ Etapas concluídas:
 - 5 — defasagem: ADF, correlação cruzada e Granger com BH; sem evidência de que o dólar antecipe os preços;
 - 6 — previsão ARIMA/ETS com backtest (janela de 60 meses, h = 1, 3, 6; rMAE vs ingênuo + DM-HLN):
   **sem evidência de que algum modelo ganhe do ingênuo**, nem na soja só desde 2021;
+- 11 — ARIMAX (dólar defasado em 1 mês como exógena) no backtest: **também não ganha do ingênuo**; na soja desde 2021 com h = 1 perde
+  significativamente (rMAE 1,40; BH 0,034);
 - 7 — dashboard Streamlit + Plotly em `app/`, lendo `data/processed/resultados_*` (gerados por `python -m monitor.resultados`).
 - 8 — visual "cockpit agro" (fundo com overlay, layout 70/30, KPIs com sparklines) e análises de risco: correlação
   deslizante, volatilidade móvel e bandas de Bollinger, calculadas no pipeline;

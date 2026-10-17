@@ -4,6 +4,8 @@ Cada modelo recebe só a janela de treino (pd.Series em log, índice mensal) e d
 previsão de 1..H meses à frente com intervalo, também em log. A ordem/forma do modelo é
 escolhida dentro da janela, por AICc, então nada de fora da janela entra na escolha.
 Voltar ao nível com exp() dá a mediana prevista (adequada para erro absoluto).
+
+Todos aceitam `exog` (variável exógena); só o ARIMAX a usa, os demais a ignoram.
 """
 
 import warnings
@@ -28,11 +30,11 @@ class Previsao:
     especificacao: str  # ex.: "ARIMA(1,1,0)", "ETS(A,Ad,N)"
 
 
-Modelo = Callable[[pd.Series, int, float], Previsao]
+Modelo = Callable[[pd.Series, int, float, pd.Series | None], Previsao]
 
 
-def ingenuo(log_y: pd.Series, horizonte: int, alfa: float = ALFA_INTERVALO) -> Previsao:
-    """Repete o último valor. Intervalo de passeio aleatório: σ das variações da janela × √h."""
+def ingenuo(log_y: pd.Series, horizonte: int, alfa: float = ALFA_INTERVALO, exog: pd.Series | None = None) -> Previsao:
+    """Repete o último valor. Intervalo de passeio aleatório: σ das variações da janela × √h. `exog` é ignorado."""
     _exigir_janela(log_y)
     h = np.arange(1, horizonte + 1)
     ultimo = float(log_y.iloc[-1])
@@ -42,34 +44,59 @@ def ingenuo(log_y: pd.Series, horizonte: int, alfa: float = ALFA_INTERVALO) -> P
     return Previsao(media, media - meia, media + meia, "ingênuo")
 
 
-def arima(log_y: pd.Series, horizonte: int, alfa: float = ALFA_INTERVALO) -> Previsao:
-    """ARIMA(p,1,q) sem constante, p e q até 2, escolhido por AICc na janela.
+def arima(log_y: pd.Series, horizonte: int, alfa: float = ALFA_INTERVALO, exog: pd.Series | None = None) -> Previsao:
+    """ARIMA(p,1,q) sem constante, p e q até 2, escolhido por AICc na janela. `exog` é ignorado.
 
     d = 1 fixo (preço em log com raiz unitária) e sem drift: uma tendência estimada em 60
     meses tende a ser extrapolada demais. ARIMA(0,1,0) é o próprio ingênuo e está na grade.
     """
     _exigir_janela(log_y)
-    y = log_y.to_numpy()
+    return _prever_arima(log_y.to_numpy(), horizonte, alfa, None, None, "ARIMA")
+
+
+def arimax(log_y: pd.Series, horizonte: int, alfa: float = ALFA_INTERVALO, exog: pd.Series | None = None) -> Previsao:
+    """ARIMAX(p,1,q) sem constante, com o dólar (log) defasado em 1 mês como exógena; ordem por AICc na janela.
+
+    `exog` é obrigatório e vem do backtest já defasado: indexado pelo mês que explica, cobre os meses da janela
+    **e mais o mês seguinte à origem** (cujo valor é o dólar da própria origem, já conhecido). Para os passos
+    seguintes não há previsão do dólar, então o último valor é repetido (dólar ingênuo). Com d = 1 o modelo é
+    y_t = β·x_t + η_t com η ~ ARIMA(p,1,q): o retorno do preço é explicado pelo retorno do dólar do mês anterior.
+    """
+    if exog is None:
+        raise ValueError("ARIMAX exige exog (dólar em log, defasado em 1 mês)")
+    _exigir_janela(log_y)
+    n = len(log_y)
+    esperado = log_y.index.append(pd.DatetimeIndex([log_y.index[-1] + pd.DateOffset(months=1)]))
+    if len(exog) != n + 1 or not exog.index.equals(esperado) or not np.isfinite(exog.to_numpy()).all():
+        raise ValueError(f"exog precisa cobrir os {n} meses da janela e o mês seguinte, com valores finitos")
+    x_treino = exog.iloc[:n].to_numpy().reshape(-1, 1)
+    x_futuro = np.full((horizonte, 1), float(exog.iloc[n]))
+    return _prever_arima(log_y.to_numpy(), horizonte, alfa, x_treino, x_futuro, "ARIMAX")
+
+
+def _prever_arima(y: np.ndarray, horizonte: int, alfa: float, x_treino: np.ndarray | None,
+                  x_futuro: np.ndarray | None, rotulo: str) -> Previsao:
+    """Grade (p,1,q), p e q ≤ 2, por AICc; com `x_treino` é ARIMAX e a previsão usa `x_futuro`."""
     melhor, ordem = None, None
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")  # avisos de convergência/inversibilidade em ordens ruins
         for p in range(ORDEM_MAX_ARIMA + 1):
             for q in range(ORDEM_MAX_ARIMA + 1):
                 try:
-                    res = ARIMA(y, order=(p, 1, q), trend="n").fit()
+                    res = ARIMA(y, exog=x_treino, order=(p, 1, q), trend="n").fit()
                 except (ValueError, np.linalg.LinAlgError):
                     continue
                 if np.isfinite(res.aicc) and (melhor is None or res.aicc < melhor.aicc):
                     melhor, ordem = res, (p, 1, q)
         if melhor is None:
-            raise RuntimeError("Nenhuma ordem ARIMA convergiu na janela")
-        fc = melhor.get_forecast(horizonte)
+            raise RuntimeError(f"Nenhuma ordem {rotulo} convergiu na janela")
+        fc = melhor.get_forecast(horizonte, exog=x_futuro)
         ic = np.asarray(fc.conf_int(alpha=alfa))
-    return Previsao(np.asarray(fc.predicted_mean), ic[:, 0], ic[:, 1], f"ARIMA{ordem}".replace(" ", ""))
+    return Previsao(np.asarray(fc.predicted_mean), ic[:, 0], ic[:, 1], f"{rotulo}{ordem}".replace(" ", ""))
 
 
-def ets(log_y: pd.Series, horizonte: int, alfa: float = ALFA_INTERVALO) -> Previsao:
-    """ETS de erro aditivo, sem sazonalidade: (A,N,N) ou (A,Ad,N), escolhido por AICc na janela."""
+def ets(log_y: pd.Series, horizonte: int, alfa: float = ALFA_INTERVALO, exog: pd.Series | None = None) -> Previsao:
+    """ETS de erro aditivo, sem sazonalidade: (A,N,N) ou (A,Ad,N), escolhido por AICc na janela. `exog` é ignorado."""
     _exigir_janela(log_y)
     y = log_y.copy()
     y.index = pd.DatetimeIndex(y.index, freq="MS")
@@ -88,7 +115,8 @@ def ets(log_y: pd.Series, horizonte: int, alfa: float = ALFA_INTERVALO) -> Previ
     )
 
 
-MODELOS: dict[str, Modelo] = {"ingênuo": ingenuo, "ARIMA": arima, "ETS": ets}
+MODELOS: dict[str, Modelo] = {"ingênuo": ingenuo, "ARIMA": arima, "ARIMAX": arimax, "ETS": ets}
+EXIGEM_EXOGENA = frozenset({"ARIMAX"})  # modelos que o backtest só roda se receber o dólar
 REFERENCIA = "ingênuo"
 
 

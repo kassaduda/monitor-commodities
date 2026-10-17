@@ -27,20 +27,21 @@ class Caso:
     variante: str
     janela: int
     dados: pd.DataFrame  # US$/t, período em comum com o dólar
+    cambio: pd.DataFrame  # PTAX média mensal (R$/US$), período em comum: exógena do ARIMAX
 
 
 def casos(dir_processed: Path = config.DIR_PROCESSED) -> list[Caso]:
     base = montar_base(dir_processed)
     soja, milho = base.precos["wb_soja"]["US$/t"], base.precos["wb_milho"]["US$/t"]
     return [
-        Caso("wb_soja", VARIANTE_COMPLETA, JANELA, soja),
-        Caso("wb_soja", VARIANTE_ROBUSTEZ, JANELA_ROBUSTEZ, recortar(soja, INICIO_ROBUSTEZ_SOJA, base.fim)),
-        Caso("wb_milho", VARIANTE_COMPLETA, JANELA, milho),
+        Caso("wb_soja", VARIANTE_COMPLETA, JANELA, soja, base.ptax),
+        Caso("wb_soja", VARIANTE_ROBUSTEZ, JANELA_ROBUSTEZ, recortar(soja, INICIO_ROBUSTEZ_SOJA, base.fim), base.ptax),
+        Caso("wb_milho", VARIANTE_COMPLETA, JANELA, milho, base.ptax),
     ]
 
 
 def avaliar_caso(caso: Caso) -> pd.DataFrame:
-    erros = backtest(caso.dados, MODELOS, janela=caso.janela, horizontes=HORIZONTES)
+    erros = backtest(caso.dados, MODELOS, janela=caso.janela, horizontes=HORIZONTES, cambio=caso.cambio)
     return avaliar(erros).assign(serie=caso.serie, variante=caso.variante, janela=caso.janela)
 
 
@@ -57,7 +58,7 @@ def avaliar_casos(lista: list[Caso], paralelo: bool = True) -> pd.DataFrame:
 def previsoes_ilustrativas(lista: list[Caso]) -> pd.DataFrame:
     """Previsão de todos os modelos a partir do último mês, só nos casos de série completa."""
     return pd.concat(
-        [prever(c.dados, f, nome, janela=c.janela) for c in lista if c.variante == VARIANTE_COMPLETA
+        [prever(c.dados, f, nome, janela=c.janela, cambio=c.cambio) for c in lista if c.variante == VARIANTE_COMPLETA
          for nome, f in MODELOS.items()],
         ignore_index=True,
     )

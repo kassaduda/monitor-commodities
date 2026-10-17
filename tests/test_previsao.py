@@ -78,7 +78,7 @@ def _espiao():
     """Modelo que registra a janela recebida e prevê o último valor."""
     janelas: list[pd.Series] = []
 
-    def modelo(log_y, horizonte, alfa):
+    def modelo(log_y, horizonte, alfa, exog=None):
         janelas.append(log_y.copy())
         m = np.full(horizonte, float(log_y.iloc[-1]))
         return Previsao(m, m - 1, m + 1, "espião")
@@ -223,3 +223,104 @@ def test_casos_incluem_robustez_da_soja_so_com_dados_desde_2021(tmp_path):
     assert robustez.dados["data"].min() == pd.Timestamp("2021-01-01")
     assert robustez.dados["data"].max() == lista[0].dados["data"].max()
     assert robustez.janela == JANELA_ROBUSTEZ
+
+
+# ---------- ARIMAX (dólar defasado como exógena) ----------
+
+@pytest.fixture
+def grade_pequena(monkeypatch):
+    """Grade (p,q) ≤ 1 no ARIMAX: o ajuste com exógena é lento e estes testes não dependem da grade completa."""
+    monkeypatch.setattr("monitor.previsao.modelos.ORDEM_MAX_ARIMA", 1)
+
+
+def _com_dolar(n=90, beta=0.9, ruido=0.002, seed=3):
+    """Preço cujo retorno de t depende do retorno do dólar de t−1; dólar mensal começa no mesmo mês."""
+    rng = np.random.default_rng(seed)
+    x = np.cumsum(rng.normal(0, 0.05, n))  # log do dólar
+    y = np.zeros(n)
+    for t in range(1, n):
+        y[t] = y[t - 1] + (beta * (x[t - 1] - x[t - 2]) if t >= 2 else 0) + rng.normal(0, ruido)
+    preco = _precos(400 * np.exp(y))
+    cambio = _precos(2.0 * np.exp(x), serie="ptax_venda_media_mensal").assign(unidade="R$/US$")
+    return preco, cambio
+
+
+def test_exog_defasado_usa_o_dolar_do_mes_anterior_ate_a_origem():
+    from monitor.previsao.backtest import exog_defasado
+
+    log_x = serie_log(_precos([1, 2, 3, 4, 5, 6, 7, 8], serie="x").assign(unidade="R$/US$"))
+    treino = log_x.index[2:6]  # meses 3..6; origem = 6º mês
+    ex = exog_defasado(log_x, treino)
+    assert list(ex.index) == list(log_x.index[2:7])  # janela + mês seguinte à origem
+    assert np.allclose(ex.to_numpy(), log_x.iloc[1:6].to_numpy())  # valor do mês t = dólar de t−1; último = dólar da origem
+    assert exog_defasado(log_x, log_x.index[0:4]) is None  # o 1º mês não tem dólar defasado
+
+
+def test_arimax_exige_exog_e_valida_o_alinhamento():
+    from monitor.previsao.modelos import arimax
+
+    y = _log()
+    with pytest.raises(ValueError, match="exige exog"):
+        arimax(y, 3)
+    with pytest.raises(ValueError, match="cobrir"):
+        arimax(y, 3, exog=pd.Series(0.0, index=y.index))  # falta o mês seguinte
+
+
+@pytest.mark.parametrize("modelo", [ingenuo, arima, ets])
+def test_modelos_sem_exogena_ignoram_o_exog(modelo):
+    y = _log()
+    exog = pd.Series(np.random.default_rng(0).normal(size=len(y) + 1),
+                     index=y.index.append(pd.DatetimeIndex([y.index[-1] + pd.DateOffset(months=1)])))
+    a, b = modelo(y, 3), modelo(y, 3, exog=exog)
+    assert np.allclose(a.media, b.media) and np.allclose(a.sup, b.sup) and a.especificacao == b.especificacao
+
+
+def test_backtest_com_arimax_exige_o_cambio():
+    from monitor.previsao.modelos import arimax
+
+    with pytest.raises(ValueError, match="exigem o dólar"):
+        backtest(_passeio(70), {"ARIMAX": arimax}, janela=36, horizontes=(1,))
+
+
+def test_arimax_aproveita_o_dolar_defasado_quando_ele_explica_o_preco(grade_pequena):
+    from monitor.previsao.modelos import arimax
+
+    preco, cambio = _com_dolar(52)
+    erros = backtest(preco, {"ingênuo": ingenuo, "ARIMAX": arimax}, janela=30, horizontes=(1,), cambio=cambio)
+    mae = erros.assign(abs=erros["erro"].abs()).groupby("modelo")["abs"].mean()
+    assert mae["ARIMAX"] < 0.5 * mae["ingênuo"]  # com relação real, o ARIMAX bate o ingênuo em h = 1
+    assert erros[erros["modelo"] == "ARIMAX"]["especificacao"].str.startswith("ARIMAX").all()
+
+
+def test_arimax_pula_origens_sem_dolar_defasado_completo(grade_pequena):
+    from monitor.previsao.modelos import arimax
+
+    preco, cambio = _com_dolar(42)  # o dólar começa no mesmo mês do preço: a 1ª janela não tem o mês t−1
+    erros = backtest(preco, {"ingênuo": ingenuo, "ARIMAX": arimax}, janela=30, horizontes=(1,), cambio=cambio)
+    n = erros.groupby("modelo").size()
+    assert n["ARIMAX"] == n["ingênuo"] - 1
+    assert erros[erros["modelo"] == "ARIMAX"]["origem"].min() > erros[erros["modelo"] == "ingênuo"]["origem"].min()
+
+
+def test_arimax_sem_vazamento_do_dolar_futuro(grade_pequena):
+    from monitor.previsao.modelos import arimax
+
+    preco, cambio = _com_dolar(46)
+    alterado = cambio.copy()
+    alterado.loc[alterado.index >= 38, "valor"] *= 3  # muda o dólar do mês 38 em diante
+    a = backtest(preco, {"ARIMAX": arimax}, janela=30, horizontes=(1, 3), cambio=cambio)
+    b = backtest(preco, {"ARIMAX": arimax}, janela=30, horizontes=(1, 3), cambio=alterado)
+    corte = preco["data"].iloc[37]  # origem no mês 37 usa o dólar até o mês 37
+    pa, pb = a[a["origem"] <= corte], b[b["origem"] <= corte]
+    assert len(pa) > 0
+    assert np.allclose(pa["previsto"], pb["previsto"]) and np.allclose(pa["sup"], pb["sup"])
+    assert not np.allclose(a[a["origem"] > corte]["previsto"], b[b["origem"] > corte]["previsto"])  # e depois muda
+
+
+def test_prever_com_arimax_usa_o_dolar_da_ultima_origem(grade_pequena):
+    from monitor.previsao.modelos import arimax
+
+    preco, cambio = _com_dolar(70)
+    prev = prever(preco, arimax, "ARIMAX", janela=36, horizonte=3, cambio=cambio)
+    assert len(prev) == 3 and prev["especificacao"].str.startswith("ARIMAX").all()
+    assert prev["data"].iloc[0] == preco["data"].max() + pd.DateOffset(months=1)

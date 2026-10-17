@@ -237,6 +237,12 @@ def simulador_stress() -> None:
     ui.info("Cálculo mecânico isolado (Ceteris Paribus). Não prevê a reação real do mercado.", destino=sb)
 
 
+def nomes_modelos(bt: pd.DataFrame, conj: str = "ou") -> str:
+    """"ARIMA, ARIMAX ou ETS", a partir dos modelos que estão na tabela do backtest."""
+    nomes = sorted(bt["modelo"].unique())
+    return f"{', '.join(nomes[:-1])} {conj} {nomes[-1]}" if len(nomes) > 1 else nomes[0]
+
+
 def aba_previsao() -> None:
     bt = carga.resultado("backtest")
     ui.subheader("Backtest e previsão ingênua")
@@ -276,8 +282,9 @@ def aba_previsao() -> None:
     ganha, perde = int(contagem.get("ganha do ingênuo", 0)), int(contagem.get("perde do ingênuo", 0))
     if ganha == 0:
         extra = f" (e em {perde} erra significativamente mais)" if perde else ""
-        ui.success(f"**Veredito honesto:** em nenhum dos {len(bt)} casos o ARIMA ou o ETS erra significativamente menos que "
-                   f"o ingênuo{extra}. Na maioria, a rMAE fica um pouco acima de 1. Por isso a previsão exibida é a **ingênua**.")
+        acima = int((bt["rmae"] > 1).sum())
+        ui.success(f"**Veredito honesto:** em nenhum dos {len(bt)} casos {nomes_modelos(bt)} erra significativamente menos que "
+                   f"o ingênuo{extra}. Em {acima} dos {len(bt)} a rMAE fica acima de 1. Por isso a previsão exibida é a **ingênua**.")
     else:
         ui.info(f"{ganha} de {len(bt)} casos em que o modelo ganha do ingênuo; veja a tabela.")
     cob = bt[bt["variante"] == "série completa"]["cobertura95_ingenuo"]
@@ -363,8 +370,8 @@ def cartoes_kpi(base, bt: pd.DataFrame, colunas) -> None:
     with colunas[2], st.container(key="kpi_veredito"):
         ui.metric(st, "Veredito do backtest",
                   "Nenhum ganha do ingênuo" if ganha == 0 else f"{ganha} de {len(bt)} casos ganham do ingênuo",
-                  delta="ARIMA e ETS × ingênuo", delta_color="off", delta_arrow="off",
-                  help=f"ARIMA e ETS contra repetir o último valor, em {len(bt)} casos (modelo × horizonte × série).")
+                  delta=f"{nomes_modelos(bt, 'e')} × ingênuo", delta_color="off", delta_arrow="off",
+                  help=f"{nomes_modelos(bt, 'e')} contra repetir o último valor, em {len(bt)} casos (modelo × horizonte × série).")
 
 
 def main() -> None:
