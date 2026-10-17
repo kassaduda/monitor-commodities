@@ -31,13 +31,15 @@ Para rodar localmente, veja a seção "Dashboard".
 | Milho — Indicador ESALQ/B3 Campinas (apenas local) | CEPEA/ESALQ-USP | [CC BY-NC 4.0](https://www.cepea.org.br/br/licenca-de-uso-de-dados.aspx) — ver nota abaixo |
 | Preços por UF e safra (contexto) | CONAB — Preços de Mercado / Portal de Informações | Licença dos dados **não declarada** (em consulta ao SIC da CONAB); páginas gov.br sob CC BY-ND 3.0 |
 
+**Licenças:** o código deste repositório é [MIT](LICENSE); os dados seguem as licenças de cada fonte, listadas na tabela acima.
+
 ### Banco Mundial (Pink Sheet)
 
 > Fonte: World Bank, *Commodity Price Data (The Pink Sheet)*, CC BY 4.0. Dados reformatados
 > (mensal, US$/t), com conversão para R$ pela PTAX do BCB.
 
 - Arquivo oficial: `CMO-Historical-Data-Monthly.xlsx`, aba "Monthly Prices", séries
-  `Soybeans` e `Maize`, em US$ nominais por tonelada métrica. Disponível em
+  `Soybeans`, `Maize` e `Wheat, US HRW`, em US$ nominais por tonelada métrica. Disponível em
   <https://www.worldbank.org/en/research/commodity-markets>; licença no registro do
   [Data Catalog (dataset 0038238)](https://datacatalog.worldbank.org/search/dataset/0038238/commodity-prices-history-and-projections)
   e nos [termos de uso para datasets](https://www.worldbank.org/ext/en/legal/terms-conditions/datasets).
@@ -67,7 +69,7 @@ A série `Soybeans` mudou de definição ao longo do tempo (aba "Description"):
 CIF Rotterdam inclui frete e seguro até a Europa; FOB Golfo não. Por isso a passagem de
 jan/2025 pode criar um degrau que não é variação de mercado. Os gráficos de soja marcam
 **jan/2021** e **jan/2025**, e a previsão refaz o backtest da soja só com dados desde jan/2021 como teste de robustez (sem variável
-indicadora: os modelos são univariados). A série `Maize` (U.S. No. 2
+indicadora: ARIMA e ETS são univariados e o ARIMAX usa só o dólar defasado como exógena). A série `Maize` (U.S. No. 2
 yellow, FOB US Gulf) não tem mudança de definição registrada.
 
 ### Dados do CEPEA não são redistribuídos aqui
@@ -88,7 +90,8 @@ redistribuídos nos termos de cada uma.
 ## Período
 
 Desde 2010 ou o máximo disponível em cada fonte. As análises que cruzam séries usam apenas o
-período em comum entre elas (detalhado aqui ao final da implementação).
+período em comum entre elas: **2010-01 a 2026-09 (201 meses)** com a edição do Pink Sheet de 02/10/2026
+(detalhes na seção "Análise").
 
 ## Análise
 
@@ -116,6 +119,8 @@ Resultado com a edição do Pink Sheet de 02/10/2026 (n = 200 retornos, 2010-02 
 | Soja em **R$/t** | +0,423 | +0,302 a +0,531 |
 | Milho em **US$/t** | −0,212 | −0,341 a −0,076 |
 | Milho em **R$/t** | +0,346 | +0,218 a +0,463 |
+| Trigo em **US$/t** | −0,181 | −0,312 a −0,044 |
+| Trigo em **R$/t** | +0,338 | +0,209 a +0,455 |
 
 Como ler:
 - **Em R$/t a correlação positiva é em boa parte mecânica**: o preço em R$ é o preço em US$
@@ -123,7 +128,7 @@ Como ler:
   com dólar e preço internacional independentes, a correlação sairia positiva (há um teste
   com dados sintéticos que mostra isso).
 - **Em US$/t a correlação é negativa e modesta**: nos meses em que o dólar sobe frente ao real,
-  os preços internacionais de soja e milho em dólar tendem a cair um pouco. É uma associação
+  os preços internacionais de soja, milho e trigo em dólar tendem a cair um pouco. É uma associação
   no mesmo mês, não causalidade; se o dólar *antecipa* os preços é a pergunta da análise de
   defasagem (abaixo).
 
@@ -179,8 +184,8 @@ python -m monitor.previsao
 
 Leva cerca de 6 minutos (um ajuste por origem, modelo e ordem candidata; o ARIMAX é o mais lento).
 
-**Modelos** (univariados, sobre o log do preço em US$/t; a previsão volta ao nível com exp, o
-que dá a mediana prevista):
+**Modelos** (sobre o log do preço em US$/t; ARIMA e ETS são univariados e o ARIMAX usa o dólar defasado como
+exógena; a previsão volta ao nível com exp, o que dá a mediana prevista):
 - **Ingênuo** (referência): repete o último valor. Intervalo de passeio aleatório (σ das
   variações da janela × √h).
 - **ARIMA(p,1,q)** sem constante, com p, q ≤ 2. A ordem é escolhida **dentro de cada janela**
@@ -236,7 +241,7 @@ Resultado (edição do Pink Sheet de 02/10/2026; rMAE vs ingênuo com IC 95%, p 
 |  | ARIMAX | 1,04 [0,99; 1,10] p 0,20 (BH 0,51) | 1,05 [0,98; 1,12] p 0,17 (BH 0,50) | 1,04 [0,97; 1,11] p 0,32 (BH 0,52) |
 |  | ETS | 1,06 [1,02; 1,11] p 0,10 (BH 0,44) | 1,09 [1,02; 1,17] p 0,06 (BH 0,33) | 1,08 [0,96; 1,25] p 0,38 (BH 0,56) |
 | Soja, desde 2021 (T = 33/31/28) | ARIMA | 1,22 [1,08; 1,38] p 0,007 (BH 0,09) | 1,20 [1,08; 1,36] p 0,03 (BH 0,17) | 1,02 [0,86; 1,23] p 0,79 (BH 0,80) |
-|  | ARIMAX | 1,40 [1,16; 1,78] p 0,001 (BH 0,03) | 1,23 [1,07; 1,46] p 0,01 (BH 0,13) | 1,15 [0,99; 1,53] p 0,16 (BH 0,50) |
+|  | ARIMAX | 1,40 [1,16; 1,78] p 0,001 (BH 0,034) | 1,23 [1,07; 1,46] p 0,01 (BH 0,13) | 1,15 [0,99; 1,53] p 0,16 (BH 0,50) |
 |  | ETS | 1,02 [0,91; 1,18] p 0,70 (BH 0,77) | 1,02 [0,90; 1,21] p 0,80 (BH 0,80) | 1,09 [1,00; 1,34] p 0,12 (BH 0,45) |
 | Milho, 2010–2026 (T = 141/139/136) | ARIMA | 0,98 [0,90; 1,07] p 0,61 (BH 0,72) | 1,01 [0,95; 1,08] p 0,71 (BH 0,77) | 1,01 [0,95; 1,07] p 0,61 (BH 0,72) |
 |  | ARIMAX | 1,04 [0,94; 1,15] p 0,47 (BH 0,67) | 1,02 [0,97; 1,07] p 0,50 (BH 0,67) | 1,01 [0,96; 1,06] p 0,55 (BH 0,71) |
@@ -259,14 +264,14 @@ de 1. A única rMAE abaixo de 1 (ARIMA no milho com h = 1, 0,98) tem IC que incl
   (p bruto 0,007 e 0,03), mas o resultado não sobrevive ao BH. Nessa checagem de
   sensibilidade, a conclusão da série completa (nenhum ganho sobre o ingênuo) se mantém.
 - Nas janelas, a ordem mais escolhida para a soja é ARIMA(0,1,0), que é o próprio ingênuo
-  (55% das origens). O ETS escolhe quase sempre (A,N,N) com suavização alta, que fica perto do
-  ingênuo. Isso é compatível com preços mensais que se comportam como passeio aleatório.
-- **Cobertura dos intervalos de 95%** no backtest: 87% a 94% na série completa, um pouco
-  abaixo do nominal. Os intervalos subestimam a incerteza (choques de preço maiores que os da
-  janela de treino).
+  (55% das origens). O ETS escolhe (A,N,N) em 76–77% das origens na soja (conforme o horizonte) e em 95% no milho, com suavização alta,
+  que fica perto do ingênuo. Isso é compatível com preços mensais que se comportam como passeio aleatório.
+- **Cobertura dos intervalos de 95%** (série completa, nas origens do backtest): 89% a 94% para o intervalo do
+  ingênuo, que é o exibido no dashboard, e 87% a 94% para os intervalos de ARIMA, ARIMAX e ETS. Todos ficam um pouco
+  abaixo do nominal: os intervalos subestimam a incerteza (choques de preço maiores que os da janela de treino).
 
 **Previsão ilustrativa** (últimos 60 meses até set/2026, intervalo de 95%, US$/t): os modelos
-modelos ficam praticamente iguais ao último valor.
+ficam praticamente iguais ao último valor.
 
 | | Último (set/2026) | out/2026 | dez/2026 | mar/2027 |
 |---|---|---|---|---|
@@ -282,16 +287,16 @@ previsão está em US$/t; convertê-la para R$ exigiria também prever o dólar.
 ## Dashboard
 
 ```powershell
-python -m monitor.resultados          # ~3 min: refaz backtest e análises e grava data/processed/resultados_*
+python -m monitor.resultados          # ~6 min: refaz backtest e análises e grava data/processed/resultados_*
 streamlit run app/streamlit_app.py
 ```
 
-O app só **lê** arquivos (`ptax_venda`, `wb_soja`, `wb_milho` e `resultados_*.parquet`/`resultados_meta.json`);
-não recalcula modelos nem baixa dados. Os `resultados_*` derivam só de BCB e Banco Mundial (a coluna `fonte`
+O app só **lê** arquivos (`ptax_venda`, `wb_soja`, `wb_milho`, `wb_trigo` e `resultados_*.parquet`/`resultados_meta.json`);
+não recalcula modelos nem baixa dados. As únicas contas são a conversão de US$/t para R$ ao carregar e o simulador de câmbio. Os `resultados_*` derivam só de BCB e Banco Mundial (a coluna `fonte`
 registra isso e `monitor.resultados.validar_fontes` recusa qualquer menção a CEPEA/CONAB), por isso entram no git.
 De cima para baixo: aviso de previsão ilustrativa, título com a conclusão, três cartões lado a lado (último dólar e
 última soja com mini-gráfico de 12 meses; veredito do backtest), o gráfico de Bollinger da soja e a razão soja/milho, ambos
-em largura total. Abas: Dólar (diário) · Soja e milho (US$/t, R$/t, R$/sc 60 kg, com as quebras de definição) ·
+em largura total. Abas: Dólar (diário) · Soja, milho e trigo (US$/t, R$/t, R$/sc 60 kg, com as quebras de definição) ·
 Dólar × commodities (correlação, defasagem, correlação deslizante e volatilidade; exploratório) · Backtest e previsão (rMAE e
 veredito; previsão ingênua com IC 95%). O simulador de câmbio fica no painel lateral, que o Streamlit recolhe em telas
 pequenas. O rodapé global traz os créditos do BCB e do Banco Mundial (CC BY 4.0). O dashboard público não menciona CEPEA
@@ -325,8 +330,8 @@ previsão continuam só com soja e milho**: incluir o trigo mudaria o número de
   prêmio de porto (US$ 0 a 100/t, inicial 20) e um frete interno (R$ 0 a 500/t, inicial 150). Fórmula
   (`monitor.analise.conversao.preco_na_porteira`): **R$/t = (soja US$/t + prêmio) × dólar − frete**; R$/sc 60 kg = R$/t × 60/1000.
   A soja é a mais recente do Pink Sheet. Prêmio e frete são **premissas do usuário** (os valores iniciais são ilustrativos,
-  não dados de mercado) e o resultado não inclui impostos, armazenagem nem outros custos. É a única conta feita no app, porque
-  depende dos sliders. Cálculo mecânico isolado (ceteris paribus): não prevê a reação real do mercado. A variação mostrada é
+  não dados de mercado) e o resultado não inclui impostos, armazenagem nem outros custos. É a única conta que depende dos sliders
+  (ao carregar, o app também converte US$/t para R$ com a PTAX mensal). Cálculo mecânico isolado (ceteris paribus): não prevê a reação real do mercado. A variação mostrada é
   sobre o mesmo cenário com o dólar de referência (PTAX média do mês da soja).
 
 ### Risco no tempo (aba "Dólar × commodities" e gráficos de preço)
@@ -334,11 +339,11 @@ previsão continuam só com soja e milho**: incluir o trigo mudaria o número de
 Estatísticas descritivas em `monitor.analise.risco` (só pandas; não são testes). São calculadas pelo pipeline (`python -m
 monitor.resultados`) e gravadas em `resultados_correlacao_deslizante`, `resultados_volatilidade` e `resultados_bollinger`
 (todas as unidades); o dashboard só lê esses arquivos:
-- **Correlação deslizante de 36 meses** entre o retorno log do dólar e o de soja e milho em US$/t. Cada ponto usa os 36
+- **Correlação deslizante de 36 meses** entre o retorno log do dólar e o de soja, milho e trigo em US$/t. Cada ponto usa os 36
   meses que terminam nele; janelas vizinhas compartilham quase todos os dados, por isso a curva é suave.
-- **Volatilidade móvel de 12 meses:** desvio-padrão amostral dos retornos log mensais de dólar, soja e milho. A
+- **Volatilidade móvel de 12 meses:** desvio-padrão amostral dos retornos log mensais de dólar, soja, milho e trigo. A
   comparação é visual; janelas sobrepostas são autocorrelacionadas, então não há teste de significância.
-- **Bandas de Bollinger** nos gráficos de preço (aba "Soja e milho"): média móvel de 12 meses ± 2 desvios-padrão
+- **Bandas de Bollinger** nos gráficos de preço (aba "Soja, milho e trigo"): média móvel de 12 meses ± 2 desvios-padrão
   (populacional; a janela inclui o próprio mês). "Choque" é o mês fora da banda: marca descritiva, não sinal de compra
   ou venda. Na soja, jan/2021 aparece como choque e coincide com a mudança de definição da série.
 
@@ -346,7 +351,7 @@ monitor.resultados`) e gravadas em `resultados_correlacao_deslizante`, `resultad
 
 `.github/workflows/pytest.yml` roda `pytest` a cada push na `main` e em pull requests (Ubuntu, Python 3.12,
 `pip install -e ".[dev]"`). Os testes só precisam do que está no repositório (`data/processed/`); `data/raw/` não existe lá.
-Antes de publicar, a suíte foi rodada numa cópia do repositório sem `data/raw` e num venv novo com a mesma instalação.
+A CI está passando; a mesma suíte também foi rodada numa cópia do repositório sem `data/raw`, em um venv novo.
 
 ### Deploy no Streamlit Community Cloud
 
@@ -363,7 +368,7 @@ sem `pip install -e .`. Um teste (`tests/test_app_leve.py`) falha se o app passa
 4. Em **Advanced settings**, escolha **Python 3.12** (o `pyproject.toml` exige `>=3.12,<3.13`). Não há *secrets*.
 5. **Deploy**. Para atualizar, basta dar `git push`; o Cloud reinstala se o `requirements.txt` mudar.
 
-Testado em um venv novo e vazio com `pip install -r requirements.txt` e o app rodando headless (5 abas, sem exceções,
+Testado em um venv novo e vazio com `pip install -r requirements.txt` e o app rodando headless (4 abas, sem exceções,
 scipy e statsmodels não carregados).
 
 ## Como rodar
@@ -389,7 +394,7 @@ pytest
 python -m monitor.pipeline
 ```
 
-Os Parquet do Pink Sheet (`wb_soja`, `wb_milho`) guardam todo o histórico do arquivo (desde
+Os Parquet do Pink Sheet (`wb_soja`, `wb_milho`, `wb_trigo`) guardam todo o histórico do arquivo (desde
 1960); as análises usam o período em comum com o dólar (desde jan/2010). Uma nova edição do
 arquivo acrescenta os meses novos e aplica as revisões dos meses já salvos.
 
@@ -444,7 +449,6 @@ Pendências externas:
 
 1. Manter o app publicado em <https://monitor-commodities.streamlit.app> (passos em "Deploy"). A cada nova edição do Pink Sheet:
    rodar `python -m monitor.resultados`, commitar os `resultados_*` e dar `git push`; o Streamlit Cloud atualiza sozinho.
-   Rodar `python -m monitor.resultados` após cada nova edição do Pink Sheet e commitar os `resultados_*`.
-2. (Opcional) Intervalos mais largos ou empíricos, já que a cobertura de 95% ficou em 87–94%.
+2. (Opcional) Intervalos mais largos ou empíricos, já que a cobertura de 95% ficou em 89–94% (ingênuo, o exibido) e 87–94% (modelos).
 3. Acompanhar a resposta da CONAB (prazo 09/11/2026) e do CEPEA. Só codar o leitor da CONAB
    ou publicar séries do CEPEA se a resposta permitir, registrando a licença no README.
