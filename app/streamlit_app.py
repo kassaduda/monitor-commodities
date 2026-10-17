@@ -16,8 +16,10 @@ for pasta in (RAIZ / "app", RAIZ / "src"):
 
 import carga  # noqa: E402
 import ui  # noqa: E402
+import estilo  # noqa: E402
 import graficos  # noqa: E402
 from monitor import config  # noqa: E402
+from monitor.config import JANELA_BOLLINGER, JANELA_CORRELACAO, JANELA_VOLATILIDADE, K_BOLLINGER  # noqa: E402
 
 ROTULO_SERIE = {"wb_soja": "Soja", "wb_milho": "Milho", "ptax_venda": "Dólar"}
 COR = {"wb_soja": graficos.COR_SOJA, "wb_milho": graficos.COR_MILHO}
@@ -40,7 +42,7 @@ def mes_ano(d: pd.Timestamp) -> str:
 
 
 def aviso_fixo() -> None:
-    ui.warning(f"**Previsão ilustrativa. {config.AVISO_INVESTIMENTO}**", icon="⚠️")
+    estilo.selo_aviso(f"Previsão ilustrativa. {config.AVISO_INVESTIMENTO}")
 
 
 def aba_dolar() -> None:
@@ -58,6 +60,17 @@ def aba_dolar() -> None:
                     width="stretch")
 
 
+def resumo_choques(nome: str, bb: pd.DataFrame, quebras: list[pd.Timestamp]) -> tuple[str, str]:
+    """(resumo, aviso): o aviso só existe se algum choque cair num mês de mudança de definição da série."""
+    c = bb[bb["choque"]]
+    acima, abaixo = int((c["sentido"] == "acima").sum()), int((c["sentido"] == "abaixo").sum())
+    resumo = f"{nome}: {len(c)} choques em {len(bb)} meses ({acima} acima da banda, {abaixo} abaixo)."
+    coincide = [mes_ano(d) for d in c["data"] if d in quebras]
+    aviso = (f"**Atenção:** o choque de {', '.join(coincide)} coincide com uma mudança de definição da série de {nome.lower()}. "
+             "Provável efeito da nova definição, não necessariamente um movimento de mercado." if coincide else "")
+    return resumo, aviso
+
+
 def aba_precos() -> None:
     base = carga.base_mensal()
     ui.subheader("Soja e milho (mensal)")
@@ -66,12 +79,28 @@ def aba_precos() -> None:
         "Preços **internacionais** do Banco Mundial (Pink Sheet), mensais, em US$/t nominais. "
         "**R$/t = US$/t × PTAX média do mês** (BCB); **R$/sc 60 kg = R$/t × 60/1000**. "
         f"Período em comum com o dólar: {mes_ano(base.inicio)} a {mes_ano(base.fim)}.")
+    bollinger = carga.resultado("bollinger")
+    bandas = st.toggle(f"Bandas de Bollinger ({JANELA_BOLLINGER} meses, ±{K_BOLLINGER:.0f} desvios) e choques", value=True)
     for c in ("wb_soja", "wb_milho"):
         df = base.precos[c][unidade]
-        fig = graficos.linha(df, f"{ROTULO_SERIE[c]} — {unidade} (mensal)", unidade, COR[c], ROTULO_SERIE[c])
+        titulo = f"{ROTULO_SERIE[c]} — {unidade} (mensal)"
+        if bandas:
+            bb = bollinger[(bollinger["serie"] == c) & (bollinger["unidade"] == unidade)].reset_index(drop=True)
+            fig = graficos.bollinger(bb, titulo, unidade, COR[c])
+        else:
+            fig = graficos.linha(df, titulo, unidade, COR[c], ROTULO_SERIE[c])
         if c == "wb_soja":
             graficos.marcar_quebras(fig, [(pd.Timestamp(d), desc) for d, desc in config.QUEBRAS_DEFINICAO[c]])
         st.plotly_chart(fig, width="stretch")
+        if bandas:
+            resumo, aviso = resumo_choques(ROTULO_SERIE[c], bb, [pd.Timestamp(d) for d, _ in config.QUEBRAS_DEFINICAO.get(c, [])])
+            ui.caption(resumo)
+            if aviso:
+                ui.warning(aviso, icon="⚠️")
+    if bandas:
+        ui.caption(f"**Choque** = mês em que o preço fecha fora de ±{K_BOLLINGER:.0f} desvios-padrão da média dos últimos "
+                   f"{JANELA_BOLLINGER} meses (a janela inclui o próprio mês; desvio-padrão populacional, como no Bollinger clássico). "
+                   "É uma marca descritiva de movimento fora do padrão recente, não um teste estatístico nem um sinal de compra ou venda.")
     ui.info("**Quebras de definição da soja.** Até dez/2020: *U.S. No. 2 yellow, CIF Rotterdam*. De jan/2021 a dez/2024: "
             "*U.S. Gulf Yellow Soybean #2, CIF Rotterdam*. Desde jan/2025: *U.S. Soybeans, FOB U.S. Gulf*. "
             "CIF inclui frete e seguro até a Europa; FOB Golfo não, então a passagem de jan/2025 pode criar um degrau "
@@ -86,11 +115,13 @@ def aba_relacao() -> None:
     cor = carga.resultado("correlacao").copy()
     cor["Commodity"] = cor["serie_y"].map(rotulo)
     cor["Preço em"] = cor["unidade_y"].str.extract(r"\((.*)\)")[0]
-    cor["r"] = cor["r"].map(lambda v: br(v, 3))
     cor["IC 95%"] = [f"{br(a, 3)} a {br(b, 3)}" for a, b in zip(cor["ic95_inf"], cor["ic95_sup"])]
-    cor["p"] = cor["p_valor"].map(lambda v: "< 0,0001" if v < 1e-4 else br(v, 4))
+    cor["p"] = cor["p_valor"]
     cor = cor.rename(columns={"n": "n (meses)"})
-    st.dataframe(cor[["Commodity", "Preço em", "r", "IC 95%", "p", "n (meses)"]], hide_index=True, width="stretch")
+    estilizada = (cor[["Commodity", "Preço em", "r", "IC 95%", "p", "n (meses)"]].style
+                  .format({"r": lambda v: br(v, 3), "p": lambda v: "< 0,0001" if v < 1e-4 else br(v, 4)})
+                  .map(estilo.colorir_sinal, subset=["r"]))
+    st.dataframe(estilizada, hide_index=True, width="stretch")
     ui.caption("Pearson sobre retornos log mensais do dólar (R$/US$) e de cada preço (não sobre níveis, que dão "
                "correlação espúria pela tendência). **Em R$/t o resultado é em boa parte mecânico**: o preço em R$ é o "
                "preço em US$ multiplicado pelo câmbio. Em US$/t a relação é negativa e modesta, no mesmo mês.")
@@ -117,15 +148,47 @@ def aba_relacao() -> None:
     with ui.expander("Menor p ajustado por teste e caso (k ≥ 1)"):
         resumo = d[d["defasagem"] >= 1].groupby(["teste", "serie_y", "variante"], sort=False)["p_bh"].min().reset_index()
         resumo["serie_y"] = resumo["serie_y"].map(rotulo)
-        resumo["p_bh"] = resumo["p_bh"].map(lambda v: br(v, 3))
-        st.dataframe(resumo.rename(columns={"teste": "Teste", "serie_y": "Commodity", "variante": "Variante",
-                                            "p_bh": "Menor p BH"}), hide_index=True, width="stretch")
+        resumo = resumo.rename(columns={"teste": "Teste", "serie_y": "Commodity", "variante": "Variante", "p_bh": "Menor p BH"})
+        st.dataframe(resumo.style.format({"Menor p BH": lambda v: br(v, 3)}).map(estilo.colorir_p_bh, subset=["Menor p BH"]),
+                     hide_index=True, width="stretch")
+
+    secao_risco()
+
+
+def secao_risco() -> None:
+    corr = carga.resultado("correlacao_deslizante")
+    vol = carga.resultado("volatilidade")
+    r = {"correlacao": {c: g for c, g in corr.groupby("commodity", sort=False)},
+         "volatilidade": {k: g for k, g in vol.groupby("ativo", sort=False)}}
+    cores = {"wb_soja": graficos.COR_SOJA, "wb_milho": graficos.COR_MILHO}
+    ui.markdown("#### A relação muda com o tempo? (correlação deslizante)")
+    fig = graficos.linhas_suaves(
+        [(f"Dólar × {ROTULO_SERIE[c]}", r["correlacao"][c], cores[c]) for c in r["correlacao"]],
+        f"Correlação deslizante de {JANELA_CORRELACAO} meses entre os retornos do dólar e dos preços (US$/t)",
+        "r de Pearson (adimensional)", formato="r = %{y:+.2f}", faixa_y=(-1, 1))
+    graficos.marcar_quebras(fig, [(pd.Timestamp(d), "mudança de definição da soja") for d, _ in config.QUEBRAS_DEFINICAO["wb_soja"]])
+    st.plotly_chart(fig, width="stretch")
+    ui.caption(" ".join(
+        f"{ROTULO_SERIE[c]}: variou de {br(d['valor'].min(), 2)} a {br(d['valor'].max(), 2)}; último valor {br(d['valor'].iloc[-1], 2)}."
+        for c, d in r["correlacao"].items()) +
+        f" Cada ponto usa os {JANELA_CORRELACAO} meses que terminam nele, então janelas vizinhas compartilham quase todos os dados "
+        "e a curva é suave por construção. As janelas que contêm jan/2021 ou jan/2025 incluem um retorno entre duas definições da soja.")
+
+    ui.markdown("#### O risco do câmbio acompanha o risco da commodity? (volatilidade móvel)")
+    fig = graficos.linhas_suaves(
+        [(ROTULO_SERIE[k], d, graficos.COR_DOLAR if k == "ptax_venda" else cores[k]) for k, d in r["volatilidade"].items()],
+        f"Volatilidade móvel de {JANELA_VOLATILIDADE} meses: desvio-padrão do retorno log mensal",
+        "desvio-padrão do retorno log mensal (%)", escala=100, formato="%{y:.1f}%")
+    st.plotly_chart(fig, width="stretch")
+    ui.caption(" ".join(f"{ROTULO_SERIE[k]}: {br(d['valor'].iloc[-1] * 100, 1)}% no último mês (mediana {br(d['valor'].median() * 100, 1)}%)."
+                        for k, d in r["volatilidade"].items()) +
+               f" Desvio-padrão amostral dos {JANELA_VOLATILIDADE} retornos mensais que terminam em cada mês; soja e milho em US$/t. "
+               "Comparação visual e exploratória: janelas sobrepostas são autocorrelacionadas, então não há teste de significância aqui.")
 
 
 def aba_previsao() -> None:
     bt = carga.resultado("backtest")
-    ui.subheader("Backtest e previsão ilustrativa")
-    aviso_fixo()
+    ui.subheader("Backtest e previsão ingênua")
     ui.markdown("#### Os modelos ganham do ingênuo?")
     ui.caption("Janela deslizante (60 meses; 36 na checagem da soja desde 2021), previsão a 1, 3 e 6 meses, erros em US$/t "
                "fora da amostra. **rMAE = erro absoluto médio do modelo ÷ o do ingênuo (repete o último valor).** "
@@ -139,9 +202,24 @@ def aba_previsao() -> None:
     t["p (BH)"] = t["p_bh"].map(lambda v: br(v))
     t["Veredito"] = t["veredito"]
     t["Origens"] = t["T"]
-    st.dataframe(t.sort_values(["serie", "variante", "modelo", "h"], ascending=[False, True, True, True])[
-        ["Commodity", "Período", "modelo", "Horizonte", "rMAE [IC 95%]", "p (BH)", "Veredito", "Origens"]]
-        .rename(columns={"modelo": "Modelo"}), hide_index=True, width="stretch")
+    t = t.sort_values(["serie", "variante", "modelo", "h"], ascending=[False, True, True, True])
+    rmae = t["rmae"].to_numpy()
+    tabela = t[["Commodity", "Período", "modelo", "Horizonte", "rMAE [IC 95%]", "p (BH)", "Veredito", "Origens"]].rename(
+        columns={"modelo": "Modelo"})
+    estilizada = (tabela.style.apply(lambda d: estilo.colorir_rmae(d, rmae), axis=None)
+                  .map(estilo.colorir_veredito, subset=["Veredito"]))
+    st.dataframe(estilizada, hide_index=True, width="stretch", column_config={
+        "Commodity": st.column_config.TextColumn(width="small"),
+        "Período": st.column_config.TextColumn(width="small"),
+        "Modelo": st.column_config.TextColumn(width="small"),
+        "Horizonte": st.column_config.TextColumn(width="small"),
+        "rMAE [IC 95%]": st.column_config.TextColumn(width="medium"),
+        "p (BH)": st.column_config.TextColumn(width="small"),
+        "Veredito": st.column_config.TextColumn(width="medium"),
+        "Origens": st.column_config.NumberColumn(width="small"),
+    })
+    ui.caption("Cor da rMAE: verde abaixo de 1 (o modelo erra menos), vermelho acima de 1. Só conta como ganho ou perda "
+               "quando o veredito é significativo.")
 
     contagem = bt["veredito"].value_counts()
     ganha, perde = int(contagem.get("ganha do ingênuo", 0)), int(contagem.get("perde do ingênuo", 0))
@@ -171,48 +249,58 @@ def aba_previsao() -> None:
                "o intervalo (passeio aleatório) mostra a faixa de incerteza. Ilustrativa.")
 
 
-def aba_fontes() -> None:
-    m = carga.meta()
-    ui.subheader("Fontes, licenças e o que não está aqui")
-    ui.markdown(f"""
-**Dados publicados neste dashboard**
-
-- **Dólar:** {config.FONTE_BCB}, série 1, *{config.BCB_SERIE_1_NOME}* (PTAX de fechamento, R$/US$). Dados públicos; fonte citada.
-- **Soja e milho:** Banco Mundial, *World Bank Commodity Price Data (The Pink Sheet)*, mensal, US$/t nominais
-  (edição de {m['edicao_pink_sheet']}).
-
-> Contém dados do **Banco Mundial**, © The World Bank, licenciados sob
-> [**CC BY 4.0**](https://creativecommons.org/licenses/by/4.0/). Os dados foram convertidos para R$ e para saca de
-> 60 kg e usados em análises e previsões próprias; o Banco Mundial não endossa estes resultados.
-> Catálogo: [datacatalog.worldbank.org/search/dataset/0038238](https://datacatalog.worldbank.org/search/dataset/0038238).
-
-**Por que não há CEPEA nem CONAB aqui**
-
-- **CEPEA/ESALQ** (soja Paranaguá e Paraná, milho ESALQ/B3): sem autorização formal por escrito para redistribuir as
-  séries, **não as publicamos**, e o site não permite acesso automatizado por agentes de IA. Elas só entram em execução
-  local, a partir de planilhas baixadas manualmente. Há um pedido de autorização em andamento.
-- **CONAB** (preços por UF e safra): a licença de redistribuição dos dados **não é declarada**. Há um pedido de
-  esclarecimento em andamento (Informa.BR). Enquanto não houver licença, os dados não são lidos nem redistribuídos.
-
-**Metodologia, em resumo:** retornos log mensais; defasagem de 0 a 12 meses (correlação cruzada e Granger, com ajuste de
-Benjamini-Hochberg); previsão ARIMA/ETS comparada ao ingênuo em backtest de janela deslizante. Detalhes no README do repositório.
-""")
-
-
 def rodape() -> None:
+    """Créditos obrigatórios (BCB e Banco Mundial, CC BY 4.0), em todas as abas."""
     m = carga.meta()
-    st.divider()
-    ui.caption(f"Fontes: {config.FONTE_BCB} (dólar, PTAX venda, R$/US$) · {config.FONTE_WB} (soja e milho, US$/t). "
-               f"Pink Sheet de {m['edicao_pink_sheet']}; resultados gerados em {m['gerado_em']} para "
-               f"{m['periodo_inicio']} a {m['periodo_fim']}. Previsão ilustrativa. {config.AVISO_INVESTIMENTO}")
+    ui.html(
+        '<div class="rodape-fontes">'
+        f"Fontes: <strong>{config.FONTE_BCB}</strong>, série 1, {config.BCB_SERIE_1_NOME} (PTAX de fechamento, R$/US$) · "
+        "<strong>Banco Mundial</strong>, World Bank Commodity Price Data (The Pink Sheet), mensal, US$/t nominais, licença "
+        '<a href="https://creativecommons.org/licenses/by/4.0/" target="_blank">CC BY 4.0</a> '
+        '(<a href="https://datacatalog.worldbank.org/search/dataset/0038238" target="_blank">catálogo</a>).<br>'
+        "Dados convertidos para R$ e saca de 60 kg e analisados por este projeto; o Banco Mundial não endossa os resultados. "
+        f"Pink Sheet de {m['edicao_pink_sheet']}; resultados gerados em {m['gerado_em']} para {m['periodo_inicio']} a {m['periodo_fim']}."
+        "</div>")
+
+
+def hero_e_kpis() -> None:
+    """Conclusão primeiro (título e 3 cartões); tudo lido dos arquivos, nada recalculado."""
+    base = carga.base_mensal()
+    d = carga.resultado("defasagem")
+    bt = carga.resultado("backtest")
+    n_sig = int(d[d["defasagem"] >= 1]["significativo_bh"].sum())
+    desfecho = "Sem evidência" if n_sig == 0 else f"{n_sig} teste(s) significativo(s)"
+    ui.title(f"O dólar antecipa o preço da soja e do milho? {desfecho} em {len(base.ptax)} meses de dados")
+    ui.caption(f"Dólar (BCB) e preços internacionais (Banco Mundial), {mes_ano(base.inicio)} a {mes_ano(base.fim)}.")
+
+    dolar = carga.dolar_diario().iloc[-1]
+    soja = base.precos["wb_soja"]["US$/t"].iloc[-1]
+    ganha = int((bt["veredito"] == "ganha do ingênuo").sum())
+    c1, c2, c3 = st.columns(3)
+    with c1, st.container(key="kpi_dolar"):
+        ui.metric(st, "Último dólar", f"R$ {br(dolar['valor'], 4)}/US$",
+                  delta=f"SGS BCB · {dolar['data']:%d/%m/%Y}", delta_color="off", delta_arrow="off")
+        st.plotly_chart(graficos.sparkline(base.ptax), width="stretch", config={"staticPlot": True})
+        ui.caption("Últimos 24 meses (média mensal)")
+    with c2, st.container(key="kpi_soja"):
+        ui.metric(st, "Última soja", f"{br(soja['valor'], 1)} US$/t",
+                  delta=f"Banco Mundial · {mes_ano(soja['data'])}", delta_color="off", delta_arrow="off")
+        st.plotly_chart(graficos.sparkline(base.precos["wb_soja"]["US$/t"]), width="stretch", config={"staticPlot": True})
+        ui.caption("Últimos 24 meses (US$/t)")
+    with c3, st.container(key="kpi_veredito"):
+        ui.metric(st, "Veredito do backtest",
+                  "Nenhum ganha do ingênuo" if ganha == 0 else f"{ganha} de {len(bt)} casos ganham do ingênuo",
+                  delta="ARIMA e ETS × ingênuo", delta_color="off", delta_arrow="off",
+                  help=f"ARIMA e ETS contra repetir o último valor, em {len(bt)} casos (modelo × horizonte × série).")
 
 
 def main() -> None:
     st.set_page_config(page_title="Monitor de Commodities", page_icon="🌾", layout="wide")
-    ui.title("Monitor de Commodities: dólar × soja e milho")
+    estilo.inject_custom_css()
     aviso_fixo()
-    tabs = st.tabs(["Dólar", "Soja e milho", "Dólar × commodities", "Backtest e previsão", "Fontes e licenças"])
-    for tab, aba in zip(tabs, (aba_dolar, aba_precos, aba_relacao, aba_previsao, aba_fontes)):
+    hero_e_kpis()
+    tabs = st.tabs(["Dólar", "Soja e milho", "Dólar × commodities", "Backtest e previsão"])
+    for tab, aba in zip(tabs, (aba_dolar, aba_precos, aba_relacao, aba_previsao)):
         with tab:
             aba()
     rodape()

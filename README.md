@@ -257,9 +257,24 @@ streamlit run app/streamlit_app.py
 O app só **lê** arquivos (`ptax_venda`, `wb_soja`, `wb_milho` e `resultados_*.parquet`/`resultados_meta.json`);
 não recalcula modelos nem baixa dados. Os `resultados_*` derivam só de BCB e Banco Mundial (a coluna `fonte`
 registra isso e `monitor.resultados.validar_fontes` recusa qualquer menção a CEPEA/CONAB), por isso entram no git.
-Abas: Dólar (diário) · Soja e milho (US$/t, R$/t, R$/sc 60 kg, com as quebras de definição) · Dólar × commodities
-(correlação e defasagem, exploratório) · Backtest e previsão (rMAE e veredito; previsão ingênua com IC 95%) ·
-Fontes e licenças (CC BY 4.0 do Banco Mundial; por que CEPEA e CONAB não estão publicados).
+Topo: aviso de previsão ilustrativa, conclusão e três cartões (último dólar e última soja com mini-gráfico de 24 meses;
+veredito do backtest). Abas: Dólar (diário) · Soja e milho (US$/t, R$/t, R$/sc 60 kg, com as quebras de definição) ·
+Dólar × commodities (correlação e defasagem, exploratório) · Backtest e previsão (rMAE e veredito; previsão ingênua com
+IC 95%). O rodapé global traz os créditos do BCB e do Banco Mundial (CC BY 4.0). O dashboard público não menciona CEPEA
+nem CONAB (um teste confere); o motivo de não publicá-los está neste README.
+
+### Risco no tempo (aba "Dólar × commodities" e gráficos de preço)
+
+Estatísticas descritivas em `monitor.analise.risco` (só pandas; não são testes). São calculadas pelo pipeline (`python -m
+monitor.resultados`) e gravadas em `resultados_correlacao_deslizante`, `resultados_volatilidade` e `resultados_bollinger`
+(todas as unidades); o dashboard só lê esses arquivos:
+- **Correlação deslizante de 36 meses** entre o retorno log do dólar e o de soja e milho em US$/t. Cada ponto usa os 36
+  meses que terminam nele; janelas vizinhas compartilham quase todos os dados, por isso a curva é suave.
+- **Volatilidade móvel de 12 meses:** desvio-padrão amostral dos retornos log mensais de dólar, soja e milho. A
+  comparação é visual; janelas sobrepostas são autocorrelacionadas, então não há teste de significância.
+- **Bandas de Bollinger** nos gráficos de preço (aba "Soja e milho"): média móvel de 12 meses ± 2 desvios-padrão
+  (populacional; a janela inclui o próprio mês). "Choque" é o mês fora da banda: marca descritiva, não sinal de compra
+  ou venda. Na soja, jan/2021 aparece como choque e coincide com a mudança de definição da série.
 
 ### Deploy no Streamlit Community Cloud
 
@@ -329,6 +344,7 @@ Etapas concluídas:
 - 6 — previsão ARIMA/ETS com backtest (janela de 60 meses, h = 1, 3, 6; rMAE vs ingênuo + DM-HLN):
   **sem evidência de que algum modelo ganhe do ingênuo**, nem na soja só desde 2021;
 - 7 — dashboard Streamlit + Plotly em `app/`, lendo `data/processed/resultados_*` (gerados por `python -m monitor.resultados`).
+- 8 — visual "cockpit agro" e análises de risco: correlação deslizante, volatilidade móvel e bandas de Bollinger.
 
 Decisões tomadas:
 - Dashboard público só com BCB + Banco Mundial; CEPEA apenas local, fora do git.

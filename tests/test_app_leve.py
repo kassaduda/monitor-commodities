@@ -32,3 +32,10 @@ def test_requirements_sem_pacotes_pesados():
     assert pacotes == {"streamlit", "plotly", "pandas", "pyarrow", "numpy"}
     assert all("==" in l for l in (RAIZ / "requirements.txt").read_text().splitlines()
                if l.strip() and not l.startswith("#"))
+
+
+def test_frontend_so_le_arquivos_sem_calcular_metricas_de_risco():
+    """As métricas de risco são calculadas no pipeline (monitor.resultados); o app só lê os Parquet."""
+    codigo = " ".join(p.read_text(encoding="utf-8") for p in (RAIZ / "app").glob("*.py"))
+    for proibido in ("monitor.analise.risco", "bandas_bollinger", "correlacao_deslizante(", "volatilidade_movel(", "retorno_log"):
+        assert proibido not in codigo, proibido

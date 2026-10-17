@@ -52,7 +52,14 @@ def metric(destino, rotulo: str, valor: str, **kw) -> None:
     """`destino` é `st` ou uma coluna (`st.columns`)."""
     if "help" in kw:
         kw["help"] = escapar(kw["help"])
+    if "delta" in kw:
+        kw["delta"] = escapar(kw["delta"])
     destino.metric(escapar(rotulo), escapar(valor), **kw)
+
+
+def html(texto: str) -> None:
+    """HTML próprio (selos, banners). O `$` vira entidade, que o Streamlit não lê como LaTeX."""
+    st.markdown(texto.replace("$", "&#36;"), unsafe_allow_html=True)
 
 
 def radio(rotulo: str, opcoes: list[str], **kw) -> str:

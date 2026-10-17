@@ -28,3 +28,4 @@ def resultado(nome: str) -> pd.DataFrame:
 @st.cache_data
 def meta() -> dict:
     return json.loads((config.DIR_PROCESSED / config.ARQUIVO_RESULTADOS_META).read_text(encoding="utf-8"))
+

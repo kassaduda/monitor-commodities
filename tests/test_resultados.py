@@ -32,3 +32,20 @@ def test_resultados_versionados_so_de_fontes_permitidas():
     assert all((t["fonte"] == FONTES_PERMITIDAS).all() for t in tabelas.values())
     meta = json.loads((config.DIR_PROCESSED / ARQUIVO_META).read_text(encoding="utf-8"))
     assert meta["fontes"] == FONTES_PERMITIDAS
+
+
+def test_tabelas_de_risco_formato_para_o_dashboard():
+    from monitor.analise.base import montar_base
+    from monitor.resultados import tabelas_de_risco
+
+    if not (config.DIR_PROCESSED / "ptax_venda.parquet").exists():
+        pytest.skip("sem dados processados")
+    t = tabelas_de_risco(montar_base())
+    assert set(t) == {"correlacao_deslizante", "volatilidade", "bollinger"}
+    assert set(t["correlacao_deslizante"]["commodity"]) == {"wb_soja", "wb_milho"}
+    assert set(t["volatilidade"]["ativo"]) == {"ptax_venda", "wb_soja", "wb_milho"}
+    bb = t["bollinger"]
+    assert {"data", "valor", "media", "inferior", "superior", "sentido", "choque", "serie", "unidade"} <= set(bb.columns)
+    assert bb.groupby(["serie", "unidade"]).ngroups == 8  # 2 commodities x 4 unidades (t e saca, em US$ e R$)
+    assert (bb["inferior"] <= bb["superior"]).all()
+    validar_fontes(t)

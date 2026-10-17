@@ -13,8 +13,10 @@ from pathlib import Path
 import pandas as pd
 
 from monitor import config
-from monitor.analise.base import correlacoes_de_retornos, montar_base
+from monitor.analise.base import COMMODITIES, BaseMensal, correlacoes_de_retornos, montar_base
 from monitor.analise.defasagem import analisar
+from monitor.analise.risco import bandas_bollinger, correlacao_deslizante, volatilidade_movel
+from monitor.analise.variacao import retorno_log
 from monitor.previsao.execucao import avaliar_casos, casos, previsoes_ilustrativas
 
 FONTES_PERMITIDAS = f"{config.FONTE_BCB}; {config.FONTE_WB}"
@@ -30,6 +32,20 @@ def tabela_correlacao(base) -> pd.DataFrame:
          "inicio": r.inicio, "fim": r.fim}
         for r in correlacoes_de_retornos(base)
     ])
+
+
+def tabelas_de_risco(base: BaseMensal) -> dict[str, pd.DataFrame]:
+    """Correlação deslizante, volatilidade móvel e Bollinger (todas as unidades), em formato longo para o dashboard."""
+    ret = {"ptax_venda": retorno_log(base.ptax)} | {c: retorno_log(base.precos[c]["US$/t"]) for c in COMMODITIES}
+    return {
+        "correlacao_deslizante": pd.concat(
+            [correlacao_deslizante(ret["ptax_venda"], ret[c]).assign(commodity=c) for c in COMMODITIES], ignore_index=True),
+        "volatilidade": pd.concat(
+            [volatilidade_movel(r).assign(ativo=k) for k, r in ret.items()], ignore_index=True),
+        "bollinger": pd.concat(
+            [bandas_bollinger(df).assign(serie=c, unidade=unidade)
+             for c in COMMODITIES for unidade, df in base.precos[c].items()], ignore_index=True),
+    }
 
 
 def validar_fontes(tabelas: dict[str, pd.DataFrame]) -> None:
@@ -54,6 +70,7 @@ def gerar(dir_processed: Path = config.DIR_PROCESSED, paralelo: bool = True) -> 
         "correlacao": tabela_correlacao(base),
         "defasagem": defasagem,
         "adf": adf,
+        **tabelas_de_risco(base),
     }
     tabelas = {k: v.assign(fonte=FONTES_PERMITIDAS) for k, v in tabelas.items()}
     validar_fontes(tabelas)

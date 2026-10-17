@@ -47,7 +47,16 @@ ARQUIVOS_RESULTADOS: dict[str, str] = {
     "correlacao": "resultados_correlacao.parquet",
     "defasagem": "resultados_defasagem.parquet",
     "adf": "resultados_adf.parquet",
+    "correlacao_deslizante": "resultados_correlacao_deslizante.parquet",
+    "volatilidade": "resultados_volatilidade.parquet",
+    "bollinger": "resultados_bollinger.parquet",
 }
+# Janelas (meses) das métricas de risco: correlação deslizante, volatilidade móvel e Bollinger (média ± k desvios).
+JANELA_CORRELACAO: int = 36
+JANELA_VOLATILIDADE: int = 12
+JANELA_BOLLINGER: int = 12
+K_BOLLINGER: float = 2.0
+
 ARQUIVO_RESULTADOS_META: str = "resultados_meta.json"
 
 AVISO_INVESTIMENTO: str = "Não é recomendação de investimento."
