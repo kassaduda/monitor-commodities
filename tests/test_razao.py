@@ -20,7 +20,7 @@ def test_razao_soja_milho_divide_e_alinha_datas():
 
 
 def test_razao_exige_us_por_tonelada_e_milho_positivo():
-    with pytest.raises(ValueError, match="US\$/t"):
+    with pytest.raises(ValueError, match=r"US\$/t"):
         razao_soja_milho(serie([1.0], "wb_soja", "R$/t"), serie([1.0], "wb_milho"))
     with pytest.raises(ValueError, match="não positivo"):
         razao_soja_milho(serie([1.0], "wb_soja"), serie([0.0], "wb_milho"))
@@ -29,3 +29,13 @@ def test_razao_exige_us_por_tonelada_e_milho_positivo():
 def test_reais_por_saca_e_proporcional_ao_cambio():
     assert reais_por_saca(500.0, 5.0) == pytest.approx(150.0)  # 500 US$/t × 5 R$/US$ = 2500 R$/t → 60 kg = 150
     assert reais_por_saca(500.0, 6.0) == pytest.approx(reais_por_saca(500.0, 5.0) * 6 / 5)
+
+
+def test_preco_na_porteira_e_conversao_para_saca():
+    from monitor.analise.conversao import preco_na_porteira, reais_t_para_saca
+
+    # (500 + 20) × 5 − 150 = 2450 R$/t  →  147 R$/sc de 60 kg
+    assert preco_na_porteira(500.0, 20.0, 5.0, 150.0) == pytest.approx(2450.0)
+    assert reais_t_para_saca(2450.0) == pytest.approx(147.0)
+    assert preco_na_porteira(500.0, 0.0, 5.0, 0.0) == pytest.approx(500.0 * 5.0)  # sem prêmio e frete: só a conversão
+    assert reais_t_para_saca(preco_na_porteira(500.0, 0.0, 5.0, 0.0)) == pytest.approx(reais_por_saca(500.0, 5.0))

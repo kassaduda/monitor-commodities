@@ -59,7 +59,9 @@ h2, h3, h4 {{ letter-spacing: -0.005em; }}
 }}
 [data-testid="stMetric"] {{ padding: 16px 18px; }}
 /* nos cartões do topo, o st.metric fica dentro do cartão (que leva o brilho): sem moldura própria */
-.st-key-kpi_dolar, .st-key-kpi_soja, .st-key-kpi_veredito {{ padding: 6px 10px 10px; margin-bottom: 0.9rem; }}
+.st-key-kpi_dolar, .st-key-kpi_soja, .st-key-kpi_veredito {{ padding: 6px 10px 10px; }}
+/* altura igual só quando os 3 cartões ficam lado a lado (tela larga); empilhados, cada um tem a altura do conteúdo */
+@media (min-width: 1280px) {{ .st-key-kpi_dolar, .st-key-kpi_soja, .st-key-kpi_veredito {{ min-height: 16rem; }} }}
 .st-key-kpi_dolar [data-testid="stMetric"], .st-key-kpi_soja [data-testid="stMetric"],
 .st-key-kpi_veredito [data-testid="stMetric"] {{ background: transparent; border: 0; box-shadow: none; }}
 .st-key-kpi_dolar [data-testid="stCaptionContainer"], .st-key-kpi_soja [data-testid="stCaptionContainer"] {{ padding: 0 18px; }}
@@ -67,11 +69,15 @@ h2, h3, h4 {{ letter-spacing: -0.005em; }}
   color: {VERDE_SUAVE}; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em;
 }}
 [data-testid="stMetricValue"] {{ font-size: 1.8rem; font-weight: 700; line-height: 1.15; color: #FFFFFF; }}
-[data-testid="stMetricValue"], [data-testid="stMetricValue"] div, [data-testid="stMetricValue"] p {{ white-space: normal !important; overflow: visible !important; text-overflow: clip !important; overflow-wrap: anywhere; line-height: 1.15 !important; }}
+[data-testid="stMetricValue"], [data-testid="stMetricValue"] div, [data-testid="stMetricValue"] p {{ white-space: normal !important; overflow: visible !important; text-overflow: clip !important; overflow-wrap: break-word; line-height: 1.15 !important; }}
 [data-testid="stMetricDelta"] {{
   color: {VERDE_SUAVE} !important; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em;
 }}
 [data-testid="stMetricDelta"] svg {{ display: none; }}
+
+/* Linha de KPIs responsiva: 3 cartões lado a lado quando cabem; senão quebram em linhas, sem espremer o texto */
+.st-key-kpis [data-testid="stHorizontalBlock"] {{ flex-wrap: wrap; }}
+.st-key-kpis [data-testid="stColumn"] {{ flex: 1 1 250px; min-width: 250px; }}
 
 /* Legendas, notas de método e rodapé: legíveis, mas discretos */
 [data-testid="stCaptionContainer"], [data-testid="stCaptionContainer"] p, [data-testid="stCaptionContainer"] li {{

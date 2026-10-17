@@ -77,8 +77,8 @@ def test_coluna_ausente_levanta_erro(tmp_path) -> None:
 
 
 def test_coluna_repetida_levanta_erro(tmp_path) -> None:
-    caminho = criar_planilha(tmp_path / "ps.xlsx", [["2026M09", 524, 524, 239.6]],
-                             cabecalho=[None, "Soybeans", "Soybeans", "Maize"])
+    caminho = criar_planilha(tmp_path / "ps.xlsx", [["2026M09", 524, 524, 239.6, 347]],
+                             cabecalho=[None, "Soybeans", "Soybeans", "Maize", "Wheat, US HRW"])
     with pytest.raises(ErroPinkSheet, match="repetidas"):
         ler_pink_sheet(caminho, COLUNAS)
 

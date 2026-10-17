@@ -19,11 +19,11 @@ import ui  # noqa: E402
 import estilo  # noqa: E402
 import graficos  # noqa: E402
 from monitor import config  # noqa: E402
-from monitor.analise.conversao import reais_por_saca  # noqa: E402
+from monitor.analise.conversao import preco_na_porteira, reais_t_para_saca  # noqa: E402
 from monitor.config import JANELA_BOLLINGER, JANELA_CORRELACAO, JANELA_VOLATILIDADE, K_BOLLINGER  # noqa: E402
 
-ROTULO_SERIE = {"wb_soja": "Soja", "wb_milho": "Milho", "ptax_venda": "Dólar"}
-COR = {"wb_soja": graficos.COR_SOJA, "wb_milho": graficos.COR_MILHO}
+ROTULO_SERIE = {"wb_soja": "Soja", "wb_milho": "Milho", "wb_trigo": "Trigo", "ptax_venda": "Dólar"}
+COR = {"wb_soja": graficos.COR_SOJA, "wb_milho": graficos.COR_MILHO, "wb_trigo": graficos.COR_TRIGO}
 UNIDADES = ["US$/t", "R$/t", "R$/sc 60 kg"]
 MESES = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"]
 
@@ -74,7 +74,7 @@ def resumo_choques(nome: str, bb: pd.DataFrame, quebras: list[pd.Timestamp]) -> 
 
 def aba_precos() -> None:
     base = carga.base_mensal()
-    ui.subheader("Soja e milho (mensal)")
+    ui.subheader("Soja, milho e trigo (mensal)")
     unidade = ui.radio("Unidade", UNIDADES, horizontal=True)
     ui.caption(
         "Preços **internacionais** do Banco Mundial (Pink Sheet), mensais, em US$/t nominais. "
@@ -82,7 +82,7 @@ def aba_precos() -> None:
         f"Período em comum com o dólar: {mes_ano(base.inicio)} a {mes_ano(base.fim)}.")
     bollinger = carga.resultado("bollinger")
     bandas = st.toggle(f"Bandas de Bollinger ({JANELA_BOLLINGER} meses, ±{K_BOLLINGER:.0f} desvios) e choques", value=True)
-    for c in ("wb_soja", "wb_milho"):
+    for c in config.WB_SERIES:
         df = base.precos[c][unidade]
         titulo = f"{ROTULO_SERIE[c]} — {unidade} (mensal)"
         if bandas:
@@ -90,8 +90,9 @@ def aba_precos() -> None:
             fig = graficos.bollinger(bb, titulo, unidade, COR[c])
         else:
             fig = graficos.linha(df, titulo, unidade, COR[c], ROTULO_SERIE[c])
-        if c == "wb_soja":
-            graficos.marcar_quebras(fig, [(pd.Timestamp(d), desc) for d, desc in config.QUEBRAS_DEFINICAO[c]])
+        if c in config.QUEBRAS_DEFINICAO:
+            graficos.marcar_quebras(fig, [(pd.Timestamp(d), desc) for d, desc in config.QUEBRAS_DEFINICAO[c]], vertical=True)
+            fig.update_xaxes(range=[df["data"].min(), df["data"].max() + pd.DateOffset(months=2)])
         st.plotly_chart(fig, width="stretch")
         if bandas:
             resumo, aviso = resumo_choques(ROTULO_SERIE[c], bb, [pd.Timestamp(d) for d, _ in config.QUEBRAS_DEFINICAO.get(c, [])])
@@ -105,7 +106,8 @@ def aba_precos() -> None:
     ui.info("**Quebras de definição da soja.** Até dez/2020: *U.S. No. 2 yellow, CIF Rotterdam*. De jan/2021 a dez/2024: "
             "*U.S. Gulf Yellow Soybean #2, CIF Rotterdam*. Desde jan/2025: *U.S. Soybeans, FOB U.S. Gulf*. "
             "CIF inclui frete e seguro até a Europa; FOB Golfo não, então a passagem de jan/2025 pode criar um degrau "
-            "que não é variação de mercado. As linhas tracejadas marcam jan/2021 e jan/2025. O milho não tem quebra registrada.")
+            "que não é variação de mercado. **Trigo (HRW):** a definição muda por volta de jul/2020 (de *no. 1 HRW, proteína ordinária* "
+            "para *no. 2 HRW*, ambos exportação no Golfo dos EUA). As linhas tracejadas marcam essas datas. O milho não tem quebra registrada.")
 
 
 def aba_relacao() -> None:
@@ -161,7 +163,7 @@ def secao_risco() -> None:
     vol = carga.resultado("volatilidade")
     r = {"correlacao": {c: g for c, g in corr.groupby("commodity", sort=False)},
          "volatilidade": {k: g for k, g in vol.groupby("ativo", sort=False)}}
-    cores = {"wb_soja": graficos.COR_SOJA, "wb_milho": graficos.COR_MILHO}
+    cores = COR
     ui.markdown("#### A relação muda com o tempo? (correlação deslizante)")
     fig = graficos.linhas_suaves(
         [(f"Dólar × {ROTULO_SERIE[c]}", r["correlacao"][c], cores[c]) for c in r["correlacao"]],
@@ -173,7 +175,7 @@ def secao_risco() -> None:
         f"{ROTULO_SERIE[c]}: variou de {br(d['valor'].min(), 2)} a {br(d['valor'].max(), 2)}; último valor {br(d['valor'].iloc[-1], 2)}."
         for c, d in r["correlacao"].items()) +
         f" Cada ponto usa os {JANELA_CORRELACAO} meses que terminam nele, então janelas vizinhas compartilham quase todos os dados "
-        "e a curva é suave por construção. As janelas que contêm jan/2021 ou jan/2025 incluem um retorno entre duas definições da soja.")
+        "e a curva é suave por construção. As janelas que contêm jan/2021 ou jan/2025 (soja) ou jul/2020 (trigo) incluem um retorno entre duas definições da série.")
 
     ui.markdown("#### O risco do câmbio acompanha o risco da commodity? (volatilidade móvel)")
     fig = graficos.linhas_suaves(
@@ -187,13 +189,15 @@ def secao_risco() -> None:
                "Comparação visual e exploratória: janelas sobrepostas são autocorrelacionadas, então não há teste de significância aqui.")
 
 
-def aba_razao() -> None:
-    ui.subheader("Razão de preços soja/milho")
+def grafico_razao() -> None:
+    """Razão soja/milho (tabela `resultados_razao_soja_milho`) com a referência em 2,5."""
     r = carga.resultado("razao")
     ref = config.REFERENCIA_RAZAO_SOJA_MILHO
     fig = graficos.razao(r, ref, "Razão soja/milho: preço da soja (US$/t) ÷ preço do milho (US$/t)")
-    graficos.marcar_quebras(fig, [(pd.Timestamp(d), "mudança de definição da soja") for d, _ in config.QUEBRAS_DEFINICAO["wb_soja"]])
+    graficos.marcar_quebras(fig, [(pd.Timestamp(d), "mudança de definição da soja") for d, _ in config.QUEBRAS_DEFINICAO["wb_soja"]],
+                            vertical=True)
     fig.update_xaxes(range=[r["data"].min(), r["data"].max() + pd.DateOffset(months=2)])
+    fig.update_layout(height=420)
     st.plotly_chart(fig, width="stretch")
     ui.caption(f"Último valor ({mes_ano(r['data'].iloc[-1])}): {br(r['valor'].iloc[-1], 2)}; no período, de {br(r['valor'].min(), 2)} "
                f"a {br(r['valor'].max(), 2)}. A linha tracejada em {br(ref, 1)} é uma **regra prática de mercado**: razões acima "
@@ -206,7 +210,10 @@ def aba_razao() -> None:
 
 
 def simulador_stress() -> None:
-    """Painel lateral: soja em R$/sc 60 kg para um dólar simulado. Conversão mecânica, ceteris paribus."""
+    """Painel lateral: preço da soja "na porteira" para um dólar, um prêmio de porto e um frete simulados.
+
+    R$/t = (US$/t + prêmio) × dólar − frete interno; R$/sc = R$/t × 60/1000. Premissas do usuário, ceteris paribus.
+    """
     base = carga.base_mensal()
     soja_usd = float(base.precos["wb_soja"]["US$/t"]["valor"].iloc[-1])
     mes = base.precos["wb_soja"]["US$/t"]["data"].iloc[-1]
@@ -214,12 +221,19 @@ def simulador_stress() -> None:
     sb = st.sidebar
     sb.markdown("### Simulador de Stress Cambial")
     simulado = ui.slider("Dólar simulado (R$/US$)", 4.0, 7.0, cambio_mes, 0.01, destino=sb)
-    sc_base, sc_sim = reais_por_saca(soja_usd, cambio_mes), reais_por_saca(soja_usd, simulado)
-    ui.metric(sb, "Soja em R$/sc 60 kg", f"R$ {br(sc_sim)}/sc",
-              delta=f"{sc_sim - sc_base:+.2f} R$/sc ({(sc_sim / sc_base - 1) * 100:+.1f}%)".replace(".", ","), delta_color="off")
-    ui.metric(sb, "Soja em R$/t", f"R$ {br(reais_por_saca(soja_usd, simulado) * 1000 / 60, 0)}/t")
-    ui.caption(f"Variação sobre o dólar de referência: PTAX média de {mes_ano(mes)}, R$ {br(cambio_mes, 2)}/US$ (BCB). "
-               f"Soja de {mes_ano(mes)}: {br(soja_usd, 1)} US$/t (Banco Mundial). R$/sc = US$/t × dólar × 60/1000.", destino=sb)
+    premio = ui.slider("Prêmio de Porto (US$/t)", 0, 100, 20, 1, destino=sb)
+    frete = ui.slider("Frete Interno (R$/t)", 0, 500, 150, 5, destino=sb)
+    reais_t = preco_na_porteira(soja_usd, premio, simulado, frete)
+    reais_t_ref = preco_na_porteira(soja_usd, premio, cambio_mes, frete)
+    sc, sc_ref = reais_t_para_saca(reais_t), reais_t_para_saca(reais_t_ref)
+    ui.metric(sb, "Soja na porteira, R$/sc 60 kg", f"R$ {br(sc)}/sc",
+              delta=f"{sc - sc_ref:+.2f} R$/sc ({(sc / sc_ref - 1) * 100:+.1f}%)".replace(".", ","), delta_color="off")
+    ui.metric(sb, "Soja na porteira, R$/t", f"R$ {br(reais_t, 0)}/t")
+    ui.caption("**R$/t na porteira = (soja em US$/t + prêmio) × dólar − frete interno**; R$/sc = R$/t × 60/1000. "
+               f"Variação sobre o mesmo cenário com o dólar de referência: PTAX média de {mes_ano(mes)}, R$ {br(cambio_mes, 2)}/US$ (BCB). "
+               f"Soja de {mes_ano(mes)}: {br(soja_usd, 1)} US$/t (Banco Mundial).", destino=sb)
+    ui.caption("Prêmio e frete são **premissas suas**: os valores iniciais (20 US$/t e R$ 150/t) são ilustrativos, não dados de mercado. "
+               "O resultado não inclui impostos, armazenagem nem outros custos, e o preço realmente recebido varia por região.", destino=sb)
     ui.info("Cálculo mecânico isolado (Ceteris Paribus). Não prevê a reação real do mercado.", destino=sb)
 
 
@@ -301,7 +315,7 @@ def rodape() -> None:
 
 
 def hero_e_kpis() -> None:
-    """Conclusão primeiro: título, o gráfico principal (70%) e os três cartões de KPI empilhados (30%).
+    """Conclusão primeiro, de cima para baixo: título, três KPIs lado a lado e os dois gráficos principais em largura total.
 
     Tudo lido dos arquivos do pipeline; nada é calculado aqui.
     """
@@ -313,11 +327,10 @@ def hero_e_kpis() -> None:
     ui.title(f"O dólar antecipa o preço da soja e do milho? {desfecho} em {len(base.ptax)} meses de dados")
     ui.caption(f"Dólar (BCB) e preços internacionais (Banco Mundial), {mes_ano(base.inicio)} a {mes_ano(base.fim)}.")
 
-    col_main, col_kpi = st.columns([7, 3])
-    with col_main:
-        grafico_principal()
-    with col_kpi:
-        cartoes_kpi(base, bt)
+    with st.container(key="kpis"):
+        cartoes_kpi(base, bt, st.columns(3))
+    grafico_principal()
+    grafico_razao()
 
 
 def grafico_principal() -> None:
@@ -327,27 +340,27 @@ def grafico_principal() -> None:
     fig = graficos.bollinger(bb, "Soja — US$/t: preço, média móvel de 12 meses e bandas de ±2 desvios", "US$/t", COR["wb_soja"])
     graficos.marcar_quebras(fig, [(pd.Timestamp(d), desc) for d, desc in config.QUEBRAS_DEFINICAO["wb_soja"]], vertical=True)
     fig.update_xaxes(range=[bb["data"].min(), bb["data"].max() + pd.DateOffset(months=2)])
-    fig.update_layout(height=620)
+    fig.update_layout(height=470)
     st.plotly_chart(fig, width="stretch")
     resumo, aviso = resumo_choques("Soja", bb, [pd.Timestamp(d) for d, _ in config.QUEBRAS_DEFINICAO["wb_soja"]])
     ui.caption(f"{resumo} {aviso}")
 
 
-def cartoes_kpi(base, bt: pd.DataFrame) -> None:
+def cartoes_kpi(base, bt: pd.DataFrame, colunas) -> None:
     dolar = carga.dolar_diario().iloc[-1]
     soja = base.precos["wb_soja"]["US$/t"].iloc[-1]
     ganha = int((bt["veredito"] == "ganha do ingênuo").sum())
-    with st.container(key="kpi_dolar"):
+    with colunas[0], st.container(key="kpi_dolar"):
         ui.metric(st, "Último dólar", f"R$ {br(dolar['valor'], 4)}/US$",
                   delta=f"SGS BCB · {dolar['data']:%d/%m/%Y}", delta_color="off", delta_arrow="off")
         st.plotly_chart(graficos.sparkline(base.ptax, 12), width="stretch", config={"staticPlot": True})
         ui.caption("Últimos 12 meses (média mensal)")
-    with st.container(key="kpi_soja"):
+    with colunas[1], st.container(key="kpi_soja"):
         ui.metric(st, "Última soja", f"{br(soja['valor'], 1)} US$/t",
                   delta=f"Banco Mundial · {mes_ano(soja['data'])}", delta_color="off", delta_arrow="off")
         st.plotly_chart(graficos.sparkline(base.precos["wb_soja"]["US$/t"], 12), width="stretch", config={"staticPlot": True})
         ui.caption("Últimos 12 meses (US$/t)")
-    with st.container(key="kpi_veredito"):
+    with colunas[2], st.container(key="kpi_veredito"):
         ui.metric(st, "Veredito do backtest",
                   "Nenhum ganha do ingênuo" if ganha == 0 else f"{ganha} de {len(bt)} casos ganham do ingênuo",
                   delta="ARIMA e ETS × ingênuo", delta_color="off", delta_arrow="off",
@@ -360,8 +373,8 @@ def main() -> None:
     aviso_fixo()
     hero_e_kpis()
     simulador_stress()
-    tabs = st.tabs(["Dólar", "Soja e milho", "Dólar × commodities", "Razão soja/milho", "Backtest e previsão"])
-    for tab, aba in zip(tabs, (aba_dolar, aba_precos, aba_relacao, aba_razao, aba_previsao)):
+    tabs = st.tabs(["Dólar", "Soja, milho e trigo", "Dólar × commodities", "Backtest e previsão"])
+    for tab, aba in zip(tabs, (aba_dolar, aba_precos, aba_relacao, aba_previsao)):
         with tab:
             aba()
     rodape()

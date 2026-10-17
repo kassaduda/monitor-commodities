@@ -6,6 +6,7 @@ import plotly.graph_objects as go
 COR_DOLAR = "#00FF7F"   # verde limão (destaque do tema)
 COR_SOJA = "#FFC21A"    # amarelo
 COR_MILHO = "#FF8C1A"   # laranja
+COR_TRIGO = "#F5DEB3"   # trigo (bege claro)
 COR_NEUTRA = "#8FB5A0"  # eixos, quebras, pontos não significativos
 COR_SIG = "#00FF7F"
 COR_TEXTO = "#E6EDF3"
@@ -16,9 +17,9 @@ LARGURA_LINHA = 2.5
 FONTE = dict(color=COR_TEXTO, size=13)
 LAYOUT = dict(
     template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=FONTE,
-    margin=dict(l=10, r=10, t=56, b=10), hovermode="x unified",
+    margin=dict(l=10, r=10, t=30, b=10), hovermode="x unified",
     hoverlabel=dict(bgcolor="#12261C", bordercolor="rgba(255,255,255,0.2)", font=dict(color=COR_TEXTO)),
-    legend=dict(orientation="h", y=-0.18, font=dict(color=COR_TEXTO, size=13)),
+    legend=dict(orientation="h", y=-0.2, font=dict(color=COR_TEXTO, size=13)),
     title=dict(font=dict(size=16, color="#F0F6FC")),
 )
 

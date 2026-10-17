@@ -153,6 +153,7 @@ def test_efeito_mecanico_da_conversao_para_reais(tmp_path) -> None:
                  caminho_parquet(tmp_path, "ptax_venda"))
     salvar_serie(_df(datas, soja, serie="wb_soja"), caminho_parquet(tmp_path, "wb_soja"))
     salvar_serie(_df(datas, milho, serie="wb_milho"), caminho_parquet(tmp_path, "wb_milho"))
+    salvar_serie(_df(datas, 220 * np.exp(np.cumsum(rng.normal(0, 0.05, n))), serie="wb_trigo"), caminho_parquet(tmp_path, "wb_trigo"))
 
     base = montar_base(tmp_path)
     assert (base.inicio, base.fim) == (pd.Timestamp("2010-01-01"), pd.Timestamp("2026-09-01"))

@@ -73,7 +73,7 @@ def test_sem_cepea_conab_e_com_creditos_no_rodape():
     codigo = " ".join(p.read_text(encoding="utf-8") for p in APP.glob("*.py")).lower()
     for proibida in ("cepea", "conab", "esalq"):
         assert proibida not in tela and proibida not in codigo, proibida
-    assert [t.label for t in at.tabs] == ["Dólar", "Soja e milho", "Dólar × commodities", "Razão soja/milho", "Backtest e previsão"]
+    assert [t.label for t in at.tabs] == ["Dólar", "Soja, milho e trigo", "Dólar × commodities", "Backtest e previsão"]
     rodape = [str(m.value) for m in at.markdown if 'class="rodape-fontes"' in str(m.value)]
     assert len(rodape) == 1
     for credito in ("Banco Central do Brasil", "Banco Mundial", "CC BY 4.0"):
@@ -100,25 +100,36 @@ def test_imagem_de_fundo_do_repositorio_e_leve():
     assert config.ARQUIVO_FUNDO.stat().st_size < 300_000  # vai inline no CSS a cada carga da página
 
 
-def test_simulador_de_stress_mostra_conversao_e_aviso():
+def test_simulador_de_stress_porteira_com_premio_e_frete():
     if not all((config.DIR_PROCESSED / a).exists() for a in [*ARQUIVOS.values(), ARQUIVO_META]):
         pytest.skip("resultados ainda não gerados (python -m monitor.resultados)")
     from streamlit.testing.v1 import AppTest
 
     at = AppTest.from_file(str(APP / "streamlit_app.py"), default_timeout=120).run()
-    def slider_do_dolar(a):
-        return next(s for s in a.slider if "Dólar simulado" in s.label)
 
-    def sacas(a) -> float:
-        valor = next(m.value for m in a.metric if "sc 60 kg" in m.label)  # o `$` vem escapado na tela
-        return float(valor.replace("\\", "").replace("R$", "").replace("/sc", "").replace(".", "").replace(",", ".").strip())
+    def slider(a, trecho):
+        return next(s for s in a.slider if trecho in s.label)
 
-    assert (slider_do_dolar(at).min, slider_do_dolar(at).max) == (4.0, 7.0)
+    def metrica(a, trecho) -> float:
+        valor = next(m.value for m in a.metric if trecho in m.label.replace("\\", ""))  # o `$` vem escapado na tela
+        limpo = valor.replace("\\", "").replace("R$", "").replace("/sc", "").replace("/t", "")
+        return float(limpo.replace(".", "").replace(",", ".").strip())
+
+    dolar, premio, frete = slider(at, "Dólar simulado"), slider(at, "Prêmio de Porto"), slider(at, "Frete Interno")
+    assert (dolar.min, dolar.max) == (4.0, 7.0)
+    assert (premio.min, premio.max, premio.value) == (0, 100, 20)
+    assert (frete.min, frete.max, frete.value) == (0, 500, 150)
     avisos = [str(i.value) for i in at.info] + [str(c.value) for c in at.caption]
     assert any("Ceteris Paribus" in a and "Não prevê a reação real do mercado" in a for a in avisos)
+    assert any("premissas suas" in a for a in avisos)
 
-    base = sacas(at)
-    em_7 = sacas(slider_do_dolar(at).set_value(7.0).run())
-    em_4 = sacas(slider_do_dolar(at).set_value(4.0).run())
-    assert em_4 < base < em_7  # dólar mais caro, soja mais cara em R$/sc
-    assert em_7 / em_4 == pytest.approx(7.0 / 4.0, rel=1e-3)  # conversão proporcional ao câmbio
+    # fórmula: R$/t = (soja + prêmio) × dólar − frete; R$/sc = R$/t × 0,06
+    t_base, sc_base = metrica(at, "R$/t"), metrica(at, "R$/sc")
+    assert sc_base == pytest.approx(t_base * 0.06, abs=0.02)
+    at = slider(at, "Frete Interno").set_value(250).run()  # +100 R$/t de frete tira 100 R$/t do preço na porteira
+    assert t_base - metrica(at, "R$/t") == pytest.approx(100, abs=1)
+    at = slider(at, "Frete Interno").set_value(0).run()
+    at = slider(at, "Prêmio de Porto").set_value(0).run()
+    sc_4 = metrica(slider(at, "Dólar simulado").set_value(4.0).run(), "R$/sc")
+    sc_7 = metrica(slider(at, "Dólar simulado").set_value(7.0).run(), "R$/sc")
+    assert sc_7 / sc_4 == pytest.approx(7.0 / 4.0, rel=1e-3)  # sem prêmio nem frete, proporcional ao câmbio

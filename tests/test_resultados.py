@@ -42,10 +42,10 @@ def test_tabelas_de_risco_formato_para_o_dashboard():
         pytest.skip("sem dados processados")
     t = tabelas_de_risco(montar_base())
     assert set(t) == {"correlacao_deslizante", "volatilidade", "bollinger"}
-    assert set(t["correlacao_deslizante"]["commodity"]) == {"wb_soja", "wb_milho"}
-    assert set(t["volatilidade"]["ativo"]) == {"ptax_venda", "wb_soja", "wb_milho"}
+    assert set(t["correlacao_deslizante"]["commodity"]) == {"wb_soja", "wb_milho", "wb_trigo"}
+    assert set(t["volatilidade"]["ativo"]) == {"ptax_venda", "wb_soja", "wb_milho", "wb_trigo"}
     bb = t["bollinger"]
     assert {"data", "valor", "media", "inferior", "superior", "sentido", "choque", "serie", "unidade"} <= set(bb.columns)
-    assert bb.groupby(["serie", "unidade"]).ngroups == 8  # 2 commodities x 4 unidades (t e saca, em US$ e R$)
+    assert bb.groupby(["serie", "unidade"]).ngroups == 12  # 3 commodities x 4 unidades (t e saca, em US$ e R$)
     assert (bb["inferior"] <= bb["superior"]).all()
     validar_fontes(t)

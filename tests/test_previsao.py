@@ -212,7 +212,7 @@ def test_casos_incluem_robustez_da_soja_so_com_dados_desde_2021(tmp_path):
     from monitor.previsao.execucao import JANELA_ROBUSTEZ, VARIANTE_ROBUSTEZ, casos
 
     rng = np.random.default_rng(4)
-    for serie, unidade in (("ptax_venda", "R$/US$"), ("wb_soja", "US$/t"), ("wb_milho", "US$/t")):
+    for serie, unidade in (("ptax_venda", "R$/US$"), ("wb_soja", "US$/t"), ("wb_milho", "US$/t"), ("wb_trigo", "US$/t")):
         df = _precos(100 * np.exp(np.cumsum(rng.normal(0, 0.03, 201))), serie=serie)
         salvar_serie(df.assign(unidade=unidade), caminho_parquet(tmp_path, serie))
 

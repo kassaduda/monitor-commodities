@@ -10,7 +10,7 @@ Cruza a cotação do dólar com os preços de soja e milho, analisa a relação 
 | Série | Fonte | Licença / termos |
 |---|---|---|
 | Dólar — PTAX de fechamento, venda (R$/US$), diário | Banco Central do Brasil — SGS, série 1: *Taxa de câmbio - Livre - Dólar americano (venda) - diário* | Dados públicos, com citação da fonte |
-| Soja e milho — preços internacionais mensais (US$/t), dashboard público | Banco Mundial — *Commodity Price Data (The Pink Sheet)* | [CC BY 4.0](https://datacatalog.worldbank.org/search/dataset/0038238/commodity-prices-history-and-projections) |
+| Soja, milho e trigo — preços internacionais mensais (US$/t), dashboard público | Banco Mundial — *Commodity Price Data (The Pink Sheet)* | [CC BY 4.0](https://datacatalog.worldbank.org/search/dataset/0038238/commodity-prices-history-and-projections) |
 | Soja — Indicador CEPEA/ESALQ Paranaguá e Paraná (apenas local) | CEPEA/ESALQ-USP | [CC BY-NC 4.0](https://www.cepea.org.br/br/licenca-de-uso-de-dados.aspx) — ver nota abaixo |
 | Milho — Indicador ESALQ/B3 Campinas (apenas local) | CEPEA/ESALQ-USP | [CC BY-NC 4.0](https://www.cepea.org.br/br/licenca-de-uso-de-dados.aspx) — ver nota abaixo |
 | Preços por UF e safra (contexto) | CONAB — Preços de Mercado / Portal de Informações | Licença dos dados **não declarada** (em consulta ao SIC da CONAB); páginas gov.br sob CC BY-ND 3.0 |
@@ -257,10 +257,12 @@ streamlit run app/streamlit_app.py
 O app só **lê** arquivos (`ptax_venda`, `wb_soja`, `wb_milho` e `resultados_*.parquet`/`resultados_meta.json`);
 não recalcula modelos nem baixa dados. Os `resultados_*` derivam só de BCB e Banco Mundial (a coluna `fonte`
 registra isso e `monitor.resultados.validar_fontes` recusa qualquer menção a CEPEA/CONAB), por isso entram no git.
-Topo: aviso de previsão ilustrativa, conclusão e, em duas colunas (70/30), o gráfico principal (soja com bandas de
-Bollinger) e três cartões empilhados (último dólar e última soja com mini-gráfico de 12 meses; veredito do backtest). Abas: Dólar (diário) · Soja e milho (US$/t, R$/t, R$/sc 60 kg, com as quebras de definição) ·
-Dólar × commodities (correlação e defasagem, exploratório) · Backtest e previsão (rMAE e veredito; previsão ingênua com
-IC 95%). O rodapé global traz os créditos do BCB e do Banco Mundial (CC BY 4.0). O dashboard público não menciona CEPEA
+De cima para baixo: aviso de previsão ilustrativa, título com a conclusão, três cartões lado a lado (último dólar e
+última soja com mini-gráfico de 12 meses; veredito do backtest), o gráfico de Bollinger da soja e a razão soja/milho, ambos
+em largura total. Abas: Dólar (diário) · Soja e milho (US$/t, R$/t, R$/sc 60 kg, com as quebras de definição) ·
+Dólar × commodities (correlação, defasagem, correlação deslizante e volatilidade; exploratório) · Backtest e previsão (rMAE e
+veredito; previsão ingênua com IC 95%). O simulador de câmbio fica no painel lateral, que o Streamlit recolhe em telas
+pequenas. O rodapé global traz os créditos do BCB e do Banco Mundial (CC BY 4.0). O dashboard público não menciona CEPEA
 nem CONAB (um teste confere); o motivo de não publicá-los está neste README.
 
 **Imagem de fundo:** `assets/background_agro.jpg` entra no CSS em base64, com um overlay escuro por cima. A imagem do
@@ -268,17 +270,32 @@ repositório é uma ilustração abstrata gerada para o projeto (sem material de
 arquivo (mantenha abaixo de ~300 KB, pois vai inline a cada carga da página) e confirme que a licença permite o uso; sem o
 arquivo, o app usa só a cor do tema.
 
+### Trigo
+
+Terceira commodity do mesmo arquivo do Pink Sheet (mesma licença CC BY 4.0), série `wb_trigo` = coluna **`Wheat, US HRW`**
+(*hard red winter*, preço de exportação no Golfo dos EUA, US$/t). O arquivo não tem uma coluna chamada `Wheat`; também traz
+`Wheat, US SRW` (*soft red winter*), que não foi usada. A aba "Description" registra uma mudança de definição do HRW ("no. 2
+hard red winter Gulf export price; June 2020 backwards, no. 1 ... ordinary protein"); a data de corte (jul/2020) foi lida de
+"June 2020 backwards" e está marcada nos gráficos. Confirme no arquivo se a data exata importar.
+
+O trigo entra no pipeline (Parquet), nas conversões, na correlação de retornos, na correlação deslizante, na volatilidade e
+nas bandas de Bollinger. **A análise de defasagem (ADF, correlação cruzada, Granger com Benjamini-Hochberg) e o backtest de
+previsão continuam só com soja e milho**: incluir o trigo mudaria o número de testes e, portanto, os p-valores ajustados.
+
 ### Razão soja/milho e simulador de câmbio
 
-- **Razão soja/milho** (aba "Razão soja/milho", `monitor.analise.razao`, tabela `resultados_razao_soja_milho`): preço da soja ÷
+- **Razão soja/milho** (gráfico no topo da página, `monitor.analise.razao`, tabela `resultados_razao_soja_milho`): preço da soja ÷
   preço do milho, ambos em US$/t, mensal. A linha em 2,5 é uma **regra prática de mercado** (razões acima dela costumam
   favorecer a soja), mostrada como referência visual, não estimada com estes dados. Até dez/2024 a soja do Pink Sheet é CIF
   Rotterdam e o milho é FOB Golfo, então a razão desse período fica inflada pelo frete; as mudanças de definição da soja
   (jan/2021, jan/2025) aparecem marcadas.
-- **Simulador de Stress Cambial** (painel lateral): para um dólar entre R$ 4,00 e R$ 7,00, mostra a soja mais recente do Pink
-  Sheet em R$/sc 60 kg e R$/t (`monitor.analise.conversao.reais_por_saca`: US$/t × dólar × 60/1000). É a única conta feita no
-  app, porque depende do slider. Cálculo mecânico isolado (ceteris paribus): não prevê a reação real do mercado. O ponto de
-  partida é a PTAX média do mês da soja.
+- **Simulador de Stress Cambial** (painel lateral): preço da soja "na porteira" para um dólar de R$ 4,00 a R$ 7,00, um
+  prêmio de porto (US$ 0 a 100/t, inicial 20) e um frete interno (R$ 0 a 500/t, inicial 150). Fórmula
+  (`monitor.analise.conversao.preco_na_porteira`): **R$/t = (soja US$/t + prêmio) × dólar − frete**; R$/sc 60 kg = R$/t × 60/1000.
+  A soja é a mais recente do Pink Sheet. Prêmio e frete são **premissas do usuário** (os valores iniciais são ilustrativos,
+  não dados de mercado) e o resultado não inclui impostos, armazenagem nem outros custos. É a única conta feita no app, porque
+  depende dos sliders. Cálculo mecânico isolado (ceteris paribus): não prevê a reação real do mercado. A variação mostrada é
+  sobre o mesmo cenário com o dólar de referência (PTAX média do mês da soja).
 
 ### Risco no tempo (aba "Dólar × commodities" e gráficos de preço)
 
@@ -292,6 +309,12 @@ monitor.resultados`) e gravadas em `resultados_correlacao_deslizante`, `resultad
 - **Bandas de Bollinger** nos gráficos de preço (aba "Soja e milho"): média móvel de 12 meses ± 2 desvios-padrão
   (populacional; a janela inclui o próprio mês). "Choque" é o mês fora da banda: marca descritiva, não sinal de compra
   ou venda. Na soja, jan/2021 aparece como choque e coincide com a mudança de definição da série.
+
+### Testes automáticos (GitHub Actions)
+
+`.github/workflows/pytest.yml` roda `pytest` a cada push na `main` e em pull requests (Ubuntu, Python 3.12,
+`pip install -e ".[dev]"`). Os testes só precisam do que está no repositório (`data/processed/`); `data/raw/` não existe lá.
+Antes de publicar, a suíte foi rodada numa cópia do repositório sem `data/raw` e num venv novo com a mesma instalação.
 
 ### Deploy no Streamlit Community Cloud
 
@@ -363,7 +386,9 @@ Etapas concluídas:
 - 7 — dashboard Streamlit + Plotly em `app/`, lendo `data/processed/resultados_*` (gerados por `python -m monitor.resultados`).
 - 8 — visual "cockpit agro" (fundo com overlay, layout 70/30, KPIs com sparklines) e análises de risco: correlação
   deslizante, volatilidade móvel e bandas de Bollinger, calculadas no pipeline;
-- 9 — razão soja/milho (aba nova, calculada no pipeline) e simulador de stress cambial no painel lateral.
+- 9 — razão soja/milho (calculada no pipeline) e simulador de stress cambial no painel lateral;
+- 10 — layout top-down; trigo (`Wheat, US HRW`) no pipeline e no dashboard; simulador "na porteira" (prêmio e frete);
+  teste automático no GitHub Actions.
 
 Decisões tomadas:
 - Dashboard público só com BCB + Banco Mundial; CEPEA apenas local, fora do git.

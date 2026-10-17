@@ -28,6 +28,8 @@ WB_ABA: str = "Monthly Prices"
 WB_SERIES: dict[str, str] = {  # série no projeto -> nome da coluna no arquivo
     "wb_soja": "Soybeans",
     "wb_milho": "Maize",
+    # O Pink Sheet não tem coluna "Wheat": traz "Wheat, US HRW" (hard red winter) e "Wheat, US SRW" (soft red winter).
+    "wb_trigo": "Wheat, US HRW",
 }
 WB_UNIDADE_ARQUIVO: str = "($/mt)"
 WB_UNIDADE: str = "US$/t"
@@ -38,6 +40,11 @@ QUEBRAS_DEFINICAO: dict[str, list[tuple[date, str]]] = {
     "wb_soja": [
         (date(2021, 1, 1), "U.S. Gulf Yellow Soybean #2, CIF Rotterdam"),
         (date(2025, 1, 1), "U.S. Soybeans, FOB U.S. Gulf"),
+    ],
+    # Aba "Description": "no. 2 hard red winter Gulf export price; June 2020 backwards, no. 1, hard red winter, ordinary
+    # protein". A data de corte (jul/2020) é lida de "June 2020 backwards"; confirmar no arquivo se a definição importar.
+    "wb_trigo": [
+        (date(2020, 7, 1), "U.S. no. 2 hard red winter, Gulf"),
     ],
 }
 

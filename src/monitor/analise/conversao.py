@@ -40,9 +40,22 @@ def tonelada_para_saca(df: pd.DataFrame) -> pd.DataFrame:
     return out[COLUNAS_PADRAO]
 
 
+def reais_t_para_saca(reais_por_tonelada: float) -> float:
+    """R$/sc de 60 kg = R$/t × 60/1000."""
+    return reais_por_tonelada * KG_POR_SACA / KG_POR_TONELADA
+
+
 def reais_por_saca(usd_por_tonelada: float, cambio: float) -> float:
     """R$ por saca de 60 kg = US$/t × (R$/US$) × 60/1000. Cálculo mecânico, sem prever reação de mercado."""
-    return usd_por_tonelada * cambio * KG_POR_SACA / KG_POR_TONELADA
+    return reais_t_para_saca(usd_por_tonelada * cambio)
+
+
+def preco_na_porteira(usd_por_tonelada: float, premio_usd_t: float, cambio: float, frete_reais_t: float) -> float:
+    """R$/t na fazenda = (US$/t + prêmio de porto em US$/t) × (R$/US$) − frete interno em R$/t.
+
+    Simulação com premissas do usuário; não inclui impostos, armazenagem nem outros custos.
+    """
+    return (usd_por_tonelada + premio_usd_t) * cambio - frete_reais_t
 
 
 def _unidade_unica(df: pd.DataFrame) -> str:

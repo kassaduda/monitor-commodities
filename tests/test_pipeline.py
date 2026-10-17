@@ -98,9 +98,10 @@ def test_pink_sheet_sem_arquivo_nao_faz_nada(tmp_path) -> None:
     assert not (tmp_path / "processed").exists()
 
 
-def test_pink_sheet_cria_parquets_de_soja_e_milho(tmp_path) -> None:
+def test_pink_sheet_cria_parquets_de_soja_milho_e_trigo(tmp_path) -> None:
     resultados = _pink(tmp_path, EDICAO_OUT)
-    assert [r.caminho.name for r in resultados] == ["wb_soja.parquet", "wb_milho.parquet"]
+    assert [r.caminho.name for r in resultados] == ["wb_soja.parquet", "wb_milho.parquet", "wb_trigo.parquet"]
+    assert ler_serie(resultados[2].caminho)["valor"].tolist() == [250.0] * 3  # valor padrão do trigo nas planilhas sintéticas
     soja = ler_serie(resultados[0].caminho)
     milho = ler_serie(resultados[1].caminho)
     assert soja["valor"].tolist() == [478.0, 482.0, 524.0]
@@ -126,7 +127,7 @@ def test_pink_sheet_nova_edicao_acrescenta_mes_e_aplica_revisao(tmp_path) -> Non
         ["2026M09", 62.0, 521, 239.6],  # revisão da soja de set/2026
         ["2026M10", 61.5, 530, 241.0],
     ]
-    r_soja, r_milho = _pink(tmp_path, edicao_nov, atualizado="Updated on November 03, 2026")
+    r_soja, r_milho, _r_trigo = _pink(tmp_path, edicao_nov, atualizado="Updated on November 03, 2026")
 
     soja = ler_serie(r_soja.caminho)
     assert soja["data"].is_unique
